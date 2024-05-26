@@ -4,104 +4,32 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
+use crate::components::MdButton::{MdButton, MdButtonKind, MdButtonVariant};
+use crate::components::ViewNav::ViewNav;
+
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "tauri"])]
     async fn invoke(cmd: &str, args: JsValue) -> JsValue;
 }
 
-#[derive(Clone, PartialEq)]
-pub enum MdButtonVariant {
-    Green,
-    Dark,
-    Light,
-}
-
-#[derive(Clone, PartialEq)]
-pub enum MdButtonKind {
-    ThinIcon,
-    ThinShort,
-    ThinWide,
-    SmallIcon,
-    SmallShort,
-    SmallWide,
-    LargeIcon,
-    LargeShort,
-    LargeWide,
-    MediumShadow,
-}
-
-#[derive(Clone, PartialEq, Properties)]
-pub struct MdButtonProps {
-    pub label: String,
-    pub icon: Option<String>,
-    pub on_click: Callback<()>,
-    pub disabled: bool,
-    pub kind: MdButtonKind,
-    pub variant: MdButtonVariant,
-}
-
-#[function_component]
-fn MdButton(props: &MdButtonProps) -> Html {
-    let variant = match props.variant {
-        MdButtonVariant::Green => "green",
-        MdButtonVariant::Dark => "dark",
-        MdButtonVariant::Light => "light",
-    };
-
-    let kind = match props.kind {
-        MdButtonKind::ThinIcon => "thin-icon",
-        MdButtonKind::ThinShort => "thin-short",
-        MdButtonKind::ThinWide => "thin-wide",
-        MdButtonKind::SmallIcon => "small-icon",
-        MdButtonKind::SmallShort => "small-short",
-        MdButtonKind::SmallWide => "small-wide",
-        MdButtonKind::LargeIcon => "large-icon",
-        MdButtonKind::LargeShort => "large-short",
-        MdButtonKind::LargeWide => "large-wide",
-        MdButtonKind::MediumShadow => "medium-shadow",
-    };
-
-    html! {
-        <button
-            class={format!("btn {} {}", variant, kind)}
-            // onclick={props.on_click.clone()}
-            disabled={props.disabled}
-        >
-            { &props.label }
-        </button>
-    }
-}
-
 #[function_component(App)]
 pub fn app() -> Html {
     html! {
         <main class="container">
-            <p>{"Midpoint Game Engine!"}</p>
-            <MdButton
-                label="X"
-                icon={""}
-                on_click={Callback::noop()}
-                disabled={false}
-                kind={MdButtonKind::MediumShadow}
-                variant={MdButtonVariant::Light}
-            />
-            <MdButton
-                label="Y"
-                icon={""}
-                on_click={Callback::noop()}
-                disabled={false}
-                kind={MdButtonKind::MediumShadow}
-                variant={MdButtonVariant::Light}
-            />
-            <MdButton
-                label="Get Started"
-                icon={""}
-                on_click={Callback::noop()}
-                disabled={false}
-                kind={MdButtonKind::SmallShort}
-                variant={MdButtonVariant::Green}
-            />
+            <ViewNav />
+            <section>
+                <p>{"Midpoint Game Engine!"}</p>
+
+                <MdButton
+                    label="Get Started"
+                    icon={""}
+                    on_click={Callback::noop()}
+                    disabled={false}
+                    kind={MdButtonKind::SmallShort}
+                    variant={MdButtonVariant::Green}
+                />
+            </section>
         </main>
     }
 }
