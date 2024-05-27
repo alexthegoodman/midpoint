@@ -40,4 +40,21 @@
   height: 70px;
   box-shadow: 0px 15px 15px 4px rgba(0, 0, 0, 0.16);
   border-radius: 15px;
+  transition: 0.2s all;
+
+  &:hover {
+    box-shadow: 0px 15px 15px 4px rgba(0, 0, 0, 0.32);
+    transition: 0.2s all;
+  }
+}
+
+.toolbar {
+    display: flex;
+    flex-direction: row;
+    gap: 15px;
+    margin-bottom: 10px;
+}
+
+#scene-canvas {
+    border-radius: 5px;
 }

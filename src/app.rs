@@ -5,6 +5,7 @@ use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
 use crate::components::MdButton::{MdButton, MdButtonKind, MdButtonVariant};
+use crate::components::SceneCanvas::SceneCanvas;
 use crate::components::ViewNav::ViewNav;
 
 #[wasm_bindgen]
@@ -19,16 +20,18 @@ pub fn app() -> Html {
         <main class="container">
             <ViewNav />
             <section>
-                <p>{"Midpoint Game Engine!"}</p>
+                <div class="toolbar">
+                    <MdButton
+                        label="Import"
+                        icon={""}
+                        on_click={Callback::noop()}
+                        disabled={false}
+                        kind={MdButtonKind::SmallShort}
+                        variant={MdButtonVariant::Green}
+                    />
+                </div>
 
-                <MdButton
-                    label="Get Started"
-                    icon={""}
-                    on_click={Callback::noop()}
-                    disabled={false}
-                    kind={MdButtonKind::SmallShort}
-                    variant={MdButtonVariant::Green}
-                />
+                <SceneCanvas />
             </section>
         </main>
     }
