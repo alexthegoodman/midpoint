@@ -6,6 +6,12 @@ use crate::renderer::core::start_render_loop;
 
 #[function_component]
 pub fn SceneCanvas() -> Html {
+    // gizmo tool (translate, rotate, scale)
+    let gizmo = "translate";
+
+    // camera tool (pan, zoom, rotate, orbit)
+    let camera = "pan";
+
     use_effect(move || {
         web_sys::console::log_1(&"Init SceneCanvas".into());
         wasm_bindgen_futures::spawn_local(async {
