@@ -1,4 +1,4 @@
-use nalgebra::{Matrix4, Perspective3, Point3, Vector3};
+use nalgebra::{Matrix4, Perspective3, Point3, Rotation3, Unit, Vector3};
 
 pub struct SimpleCamera {
     pub position: Point3<f32>,
@@ -54,6 +54,17 @@ impl SimpleCamera {
     }
 
     pub fn update(&mut self) {
+        self.update_view_projection_matrix();
+    }
+
+    pub fn rotate(&mut self, yaw: f32, pitch: f32) {
+        let yaw_rotation = Rotation3::from_axis_angle(&Unit::new_normalize(self.up), yaw);
+        let right = self.up.cross(&self.direction).normalize();
+        let pitch_rotation = Rotation3::from_axis_angle(&Unit::new_normalize(right), pitch);
+
+        let rotation = yaw_rotation * pitch_rotation;
+        self.direction = rotation * self.direction;
+
         self.update_view_projection_matrix();
     }
 }

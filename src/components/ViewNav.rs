@@ -36,6 +36,30 @@ pub fn ViewNav() -> Html {
                 kind={MdButtonKind::MediumShadow}
                 variant={MdButtonVariant::Light}
             />
+            <MdButton
+                label=""
+                icon={"faders"}
+                on_click={Callback::noop()}
+                disabled={false}
+                kind={MdButtonKind::MediumShadow}
+                variant={MdButtonVariant::Light}
+            />
+            <MdButton
+                label=""
+                icon={"speedometer"}
+                on_click={Callback::noop()}
+                disabled={false}
+                kind={MdButtonKind::MediumShadow}
+                variant={MdButtonVariant::Light}
+            />
+            <MdButton
+                label=""
+                icon={"gear"}
+                on_click={Callback::noop()}
+                disabled={false}
+                kind={MdButtonKind::MediumShadow}
+                variant={MdButtonVariant::Light}
+            />
         </nav>
     }
 }

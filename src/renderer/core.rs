@@ -21,7 +21,7 @@ use winit::event::{ElementState, WindowEvent};
 use winit::keyboard::{KeyCode, PhysicalKey};
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 struct Vertex {
     position: [f32; 3],
     color: [f32; 3],
@@ -42,6 +42,112 @@ impl Vertex {
             attributes: &Self::ATTRIBS,
         }
     }
+}
+
+pub struct Grid {
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+    index_count: u32,
+    bind_group: wgpu::BindGroup,
+}
+
+impl Grid {
+    pub fn new(device: &wgpu::Device, bind_group_layout: &wgpu::BindGroupLayout) -> Self {
+        // Generate grid vertices and indices
+        let (vertices, indices) = Self::generate_grid(100.0, 100.0, 1.0); // example dimensions and spacing
+
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Grid Vertex Buffer"),
+            contents: bytemuck::cast_slice(&vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Grid Index Buffer"),
+            contents: bytemuck::cast_slice(&indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
+        // Create a bind group
+        // let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        //     layout: bind_group_layout,
+        //     entries: &[], // Populate with necessary entries for your grid shader
+        //     label: Some("Grid Bind Group"),
+        // });
+        let empty_buffer = Matrix4::<f32>::identity();
+        let raw_matrix = matrix4_to_raw_array(&empty_buffer);
+
+        let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Grid Uniform Buffer"),
+            contents: bytemuck::cast_slice(&raw_matrix),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: uniform_buffer.as_entire_binding(),
+            }],
+            label: None,
+        });
+
+        Self {
+            vertex_buffer,
+            index_buffer,
+            index_count: indices.len() as u32,
+            bind_group,
+        }
+    }
+
+    fn generate_grid(width: f32, depth: f32, spacing: f32) -> (Vec<Vertex>, Vec<u16>) {
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+
+        let half_width = width / 2.0;
+        let half_depth = depth / 2.0;
+
+        for i in 0..=((width / spacing) as u16) {
+            let x = -half_width + i as f32 * spacing;
+            vertices.push(Vertex {
+                position: [x, 0.0, -half_depth],
+                color: [1.0, 1.0, 1.0],
+            });
+            vertices.push(Vertex {
+                position: [x, 0.0, half_depth],
+                color: [1.0, 1.0, 1.0],
+            });
+            indices.push(i * 2);
+            indices.push(i * 2 + 1);
+        }
+
+        let base = vertices.len() as u16;
+        for i in 0..=((depth / spacing) as u16) {
+            let z = -half_depth + i as f32 * spacing;
+            vertices.push(Vertex {
+                position: [-half_width, 0.0, z],
+                color: [1.0, 1.0, 1.0],
+            });
+            vertices.push(Vertex {
+                position: [half_width, 0.0, z],
+                color: [1.0, 1.0, 1.0],
+            });
+            indices.push(base + i * 2);
+            indices.push(base + i * 2 + 1);
+        }
+
+        web_sys::console::log_1(&format!("Grid vertices: {:?}", vertices).into());
+        web_sys::console::log_1(&format!("Grid indices: {:?}", indices).into());
+
+        (vertices, indices)
+    }
+
+    // pub fn draw(&self, render_pass: &mut wgpu::RenderPass) {
+    //     render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+    //     render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+    //     render_pass.set_bind_group(0, &self.bind_group, &[]);
+    //     render_pass.draw_indexed(0..self.index_count, 0, 0..1);
+    // }
 }
 
 struct Pyramid {
@@ -213,17 +319,23 @@ pub fn get_camera() -> &'static mut SimpleCamera {
 
 struct RendererState {
     pyramids: Vec<Pyramid>,
+    grids: Vec<Grid>,
     // other fields like device, queue, etc.
 }
 
 impl RendererState {
     fn new(device: &wgpu::Device, bind_group_layout: &wgpu::BindGroupLayout) -> Self {
+        // create the utility grid(s)
+        let mut grids = Vec::new();
+        grids.push(Grid::new(&device, &bind_group_layout));
+
         let mut pyramids = Vec::new();
         pyramids.push(Pyramid::new(device, bind_group_layout));
         // add more pyramids as needed
 
         Self {
             pyramids,
+            grids,
             // initialize other fields
         }
     }
@@ -443,21 +555,22 @@ pub async fn start_render_loop() {
     });
 
     // Create the bind group for the uniform buffer
-    let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("Bind Group Layout"),
-        entries: &[wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: wgpu::ShaderStages::VERTEX,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
-            count: None,
-        }],
-    });
+    let camera_bind_group_layout =
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Bind Group Layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
 
-    let pyramid_bind_group_layout =
+    let model_bind_group_layout =
         device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
@@ -469,11 +582,26 @@ pub async fn start_render_loop() {
                 },
                 count: None,
             }],
-            label: Some("pyramid_bind_group_layout"),
+            label: Some("model_bind_group_layout"),
         });
 
+    // let grid_bind_group_layout =
+    //     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+    //         entries: &[wgpu::BindGroupLayoutEntry {
+    //             binding: 0,
+    //             visibility: wgpu::ShaderStages::VERTEX,
+    //             ty: wgpu::BindingType::Buffer {
+    //                 ty: wgpu::BufferBindingType::Uniform,
+    //                 has_dynamic_offset: false,
+    //                 min_binding_size: None,
+    //             },
+    //             count: None,
+    //         }], // Populate with necessary entries for your grid shader
+    //         label: Some("Grid Bind Group Layout"),
+    //     });
+
     let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        layout: &bind_group_layout,
+        layout: &camera_bind_group_layout,
         entries: &[wgpu::BindGroupEntry {
             binding: 0,
             resource: camera_uniform_buffer.as_entire_binding(),
@@ -483,7 +611,11 @@ pub async fn start_render_loop() {
 
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Render Pipeline Layout"),
-        bind_group_layouts: &[&bind_group_layout, &pyramid_bind_group_layout],
+        bind_group_layouts: &[
+            &camera_bind_group_layout,
+            &model_bind_group_layout,
+            // &grid_bind_group_layout,
+        ],
         push_constant_ranges: &[],
     });
 
@@ -529,7 +661,7 @@ pub async fn start_render_loop() {
         multiview: None,
     });
 
-    let mut state = RendererState::new(&device, &pyramid_bind_group_layout);
+    let mut state = RendererState::new(&device, &model_bind_group_layout);
     unsafe {
         RENDERER_STATE = Some(state);
         RENDERER_STATE_INIT.with(|init| {
@@ -631,7 +763,7 @@ fn render_frame(
         // In the render loop, update the uniform buffer if necessary
         // TODO: why uniform if updating every frame?
         camera.update();
-        web_sys::console::log_1(&format!("Camera position: {:?}", camera.position).into());
+        // web_sys::console::log_1(&format!("Camera position: {:?}", camera.position).into());
         let camera_matrix = camera.view_projection_matrix;
         queue.write_buffer(
             &camera_uniform_buffer,
@@ -639,7 +771,18 @@ fn render_frame(
             bytemuck::cast_slice(camera_matrix.as_slice()),
         );
 
-        // draw render state
+        // draw utility grids
+        for grid in &state.grids {
+            render_pass.set_bind_group(0, &camera_bind_group, &[]);
+            render_pass.set_bind_group(1, &grid.bind_group, &[]);
+
+            render_pass.set_vertex_buffer(0, grid.vertex_buffer.slice(..));
+            render_pass.set_index_buffer(grid.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+
+            render_pass.draw_indexed(0..grid.index_count, 0, 0..1);
+        }
+
+        // draw pyramids
         for pyramid in &state.pyramids {
             pyramid.update_uniform_buffer(&queue);
             render_pass.set_bind_group(0, &camera_bind_group, &[]);
@@ -731,6 +874,19 @@ pub fn handle_key_press(key_code: String, is_pressed: bool) {
             // Handle any other keys if necessary
         }
     }
+
+    camera.update();
+}
+
+#[wasm_bindgen]
+pub fn handle_mouse_move(dx: f32, dy: f32) {
+    let camera = get_camera();
+    let sensitivity = 0.005;
+
+    let dx = dx * sensitivity;
+    let dy = dy * sensitivity;
+
+    camera.rotate(dx, dy);
 
     camera.update();
 }
