@@ -17,13 +17,338 @@ use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::window;
-use winit::event::{ElementState, WindowEvent};
-use winit::keyboard::{KeyCode, PhysicalKey};
+// use winit::event::{ElementState, WindowEvent};
+// use winit::keyboard::{KeyCode, PhysicalKey};
+
+use gltf::buffer::{Source, View};
+use gltf::Glb;
+use gltf::Gltf;
+use std::sync::Arc;
+// use std::error::Error;
+// use std::fs::File;
+// use std::io::BufReader;
+
+pub struct Mesh {
+    // vertices: Vec<Vertex>,
+    // indices: Vec<u32>, // TODO: not used? no reason to store here
+    transform: Matrix4<f32>,
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
+    index_count: u32,
+    bind_group: wgpu::BindGroup,
+    texture_bind_group: wgpu::BindGroup,
+}
+
+pub struct Model {
+    meshes: Vec<Mesh>,
+}
+
+impl Model {
+    pub async fn from_glb(
+        uri: &str,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        bind_group_layout: &wgpu::BindGroupLayout,
+        texture_bind_group_layout: &wgpu::BindGroupLayout,
+        texture_render_mode_buffer: &wgpu::Buffer,
+        color_render_mode_buffer: &wgpu::Buffer,
+    ) -> Self {
+        let response = reqwest::get(uri).await;
+        let bytes = response
+            .expect("Response failed")
+            .bytes()
+            .await
+            .expect("Couldnt fetch bytes")
+            .to_vec();
+
+        web_sys::console::log_1(&format!("Bytes len: {:?}", bytes.len()).into());
+
+        let glb = Glb::from_slice(&bytes).expect("Couldn't create glb from slice");
+
+        let mut meshes = Vec::new();
+
+        let gltf = Gltf::from_slice(&glb.json).expect("Failed to parse GLTF JSON");
+
+        let buffer_data = match glb.bin {
+            Some(bin) => bin,
+            None => panic!("No binary data found in GLB file"),
+        };
+
+        let uses_textures = gltf.textures().len().gt(&0);
+
+        web_sys::console::log_1(&format!("Textures count: {:?}", gltf.textures().len()).into());
+
+        let mut textures = Vec::new();
+        for texture in gltf.textures() {
+            match texture.source().source() {
+                gltf::image::Source::View { view, mime_type: _ } => {
+                    let img_data = &buffer_data[view.offset()..view.offset() + view.length()];
+                    let img = image::load_from_memory(img_data).unwrap().to_rgba8();
+                    let (width, height) = img.dimensions();
+
+                    let size = wgpu::Extent3d {
+                        width,
+                        height,
+                        depth_or_array_layers: 1,
+                    };
+
+                    let texture = device.create_texture(&wgpu::TextureDescriptor {
+                        label: Some("GLB Texture"),
+                        size,
+                        mip_level_count: 1,
+                        sample_count: 1,
+                        dimension: wgpu::TextureDimension::D2,
+                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                        view_formats: &[],
+                    });
+
+                    queue.write_texture(
+                        wgpu::ImageCopyTexture {
+                            texture: &texture,
+                            mip_level: 0,
+                            origin: wgpu::Origin3d::ZERO,
+                            aspect: wgpu::TextureAspect::All,
+                        },
+                        &img,
+                        wgpu::ImageDataLayout {
+                            offset: 0,
+                            bytes_per_row: Some(4 * width), // TODO: is this correct?
+                            rows_per_image: Some(height),
+                        },
+                        size,
+                    );
+
+                    let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+                    let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+                        address_mode_u: wgpu::AddressMode::ClampToEdge,
+                        address_mode_v: wgpu::AddressMode::ClampToEdge,
+                        address_mode_w: wgpu::AddressMode::ClampToEdge,
+                        mag_filter: wgpu::FilterMode::Linear,
+                        min_filter: wgpu::FilterMode::Linear,
+                        mipmap_filter: wgpu::FilterMode::Nearest,
+                        ..Default::default()
+                    });
+
+                    textures.push((texture_view, sampler));
+                }
+                gltf::image::Source::Uri { uri, mime_type: _ } => {
+                    panic!(
+                        "External URI image sources are not yet supported in glb files: {}",
+                        uri
+                    );
+                }
+            }
+        }
+
+        // Create a default empty texture and sampler
+        let default_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Default Empty Texture"),
+            size: wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        let default_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+
+        let default_texture_view =
+            default_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        for mesh in gltf.meshes() {
+            for primitive in mesh.primitives() {
+                let reader = primitive.reader(|buffer| Some(&buffer_data));
+
+                let positions = reader
+                    .read_positions()
+                    .expect("Positions not existing in glb");
+                let colors = reader
+                    .read_colors(0)
+                    .map(|v| v.into_rgb_f32().collect())
+                    .unwrap_or_else(|| vec![[1.0, 1.0, 1.0]; positions.len()]);
+                let normals: Vec<[f32; 3]> = reader
+                    .read_normals()
+                    .map(|iter| iter.collect())
+                    .unwrap_or_else(|| vec![[0.0, 0.0, 1.0]; positions.len()]);
+                let tex_coords: Vec<[f32; 2]> = reader
+                    .read_tex_coords(0)
+                    .map(|v| v.into_f32().collect())
+                    .unwrap_or_else(|| vec![[0.0, 0.0]; positions.len()]);
+
+                // web_sys::console::log_1(&format!("Model positions: {:?}", positions.len()).into());
+                // web_sys::console::log_1(&format!("Model colors: {:?}", colors.len()).into());
+                // web_sys::console::log_1(&format!("Model normals: {:?}", normals.len()).into());
+                // web_sys::console::log_1(
+                //     &format!("Model tex_coords: {:?}", tex_coords.len()).into(),
+                // );
+
+                // if uses_textures {
+                //     assert_eq!(
+                //         positions.len(),
+                //         tex_coords.len(),
+                //         "Positions and tex_coords must have the same length"
+                //     );
+                // } else {
+                //     assert_eq!(
+                //         positions.len(),
+                //         colors.len(),
+                //         "Positions and colors must have the same length"
+                //     );
+                // }
+
+                let vertices: Vec<Vertex> = positions
+                    .zip(normals.iter())
+                    .zip(tex_coords.iter())
+                    .zip(colors.iter())
+                    .map(|(((p, n), t), c)| Vertex {
+                        position: p,
+                        normal: *n,
+                        tex_coords: *t,
+                        color: *c,
+                    })
+                    .collect();
+
+                let indices_u32: Vec<u32> = reader
+                    .read_indices()
+                    .map(|iter| iter.into_u32().collect())
+                    .unwrap_or_default();
+
+                let indices: Vec<u16> = indices_u32.iter().map(|&i| i as u16).collect();
+
+                web_sys::console::log_1(&format!("Model vertices: {:?}", vertices.len()).into());
+                web_sys::console::log_1(&format!("Model indices: {:?}", indices.len()).into());
+
+                let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Model GLB Vertex Buffer"),
+                    contents: bytemuck::cast_slice(&vertices),
+                    usage: wgpu::BufferUsages::VERTEX,
+                });
+
+                let index_buffer: wgpu::Buffer =
+                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("Model GLB Index Buffer"),
+                        contents: bytemuck::cast_slice(&indices),
+                        usage: wgpu::BufferUsages::INDEX,
+                    });
+
+                let empty_buffer = Matrix4::<f32>::identity();
+                let raw_matrix = matrix4_to_raw_array(&empty_buffer);
+
+                let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Model GLB Uniform Buffer"),
+                    contents: bytemuck::cast_slice(&raw_matrix),
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                });
+
+                let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    layout: &bind_group_layout,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: uniform_buffer.as_entire_binding(),
+                    }],
+                    label: None,
+                });
+
+                let render_mode_buffer = if uses_textures {
+                    texture_render_mode_buffer
+                } else {
+                    color_render_mode_buffer
+                };
+
+                // Handle the texture bind group conditionally
+                let texture_bind_group = if uses_textures && !textures.is_empty() {
+                    let material = primitive.material();
+                    let texture_index = material
+                        .pbr_metallic_roughness()
+                        .base_color_texture()
+                        .map_or(0, |info| info.texture().index());
+                    let (texture_view, sampler) = &textures[texture_index];
+
+                    device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        layout: &texture_bind_group_layout,
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::TextureView(texture_view),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: wgpu::BindingResource::Sampler(sampler),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 2,
+                                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                                    buffer: render_mode_buffer,
+                                    offset: 0,
+                                    size: None,
+                                }),
+                            },
+                        ],
+                        label: None,
+                    })
+                } else {
+                    device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        layout: &texture_bind_group_layout,
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::TextureView(&default_texture_view),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: wgpu::BindingResource::Sampler(&default_sampler),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 2,
+                                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                                    buffer: render_mode_buffer,
+                                    offset: 0,
+                                    size: None,
+                                }),
+                            },
+                        ],
+                        label: None,
+                    })
+                };
+
+                meshes.push(Mesh {
+                    // vertices: vertices.clone(),
+                    // indices: indices.clone(), // TODO: expensive?
+                    transform: Matrix4::identity(),
+                    vertex_buffer,
+                    index_buffer,
+                    index_count: indices.len() as u32,
+                    bind_group,
+                    texture_bind_group,
+                });
+            }
+        }
+
+        Model { meshes }
+    }
+}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 struct Vertex {
     position: [f32; 3],
+    normal: [f32; 3],
+    tex_coords: [f32; 2],
     color: [f32; 3],
 }
 
@@ -32,8 +357,8 @@ unsafe impl Pod for Vertex {}
 unsafe impl Zeroable for Vertex {}
 
 impl Vertex {
-    const ATTRIBS: [wgpu::VertexAttribute; 2] =
-        wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3];
+    const ATTRIBS: [wgpu::VertexAttribute; 4] =
+        wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2, 3 => Float32x3];
 
     fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
         wgpu::VertexBufferLayout {
@@ -52,7 +377,11 @@ pub struct Grid {
 }
 
 impl Grid {
-    pub fn new(device: &wgpu::Device, bind_group_layout: &wgpu::BindGroupLayout) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        bind_group_layout: &wgpu::BindGroupLayout,
+        color_render_mode_buffer: &wgpu::Buffer,
+    ) -> Self {
         // Generate grid vertices and indices
         let (vertices, indices) = Self::generate_grid(100.0, 100.0, 1.0); // example dimensions and spacing
 
@@ -68,12 +397,6 @@ impl Grid {
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        // Create a bind group
-        // let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-        //     layout: bind_group_layout,
-        //     entries: &[], // Populate with necessary entries for your grid shader
-        //     label: Some("Grid Bind Group"),
-        // });
         let empty_buffer = Matrix4::<f32>::identity();
         let raw_matrix = matrix4_to_raw_array(&empty_buffer);
 
@@ -83,12 +406,24 @@ impl Grid {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
+        // TODO: fragment bind group to provide render mode?
+
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: uniform_buffer.as_entire_binding(),
-            }],
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: uniform_buffer.as_entire_binding(),
+                },
+                // wgpu::BindGroupEntry {
+                //     binding: 1,
+                //     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                //         buffer: color_render_mode_buffer,
+                //         offset: 0,
+                //         size: None,
+                //     }),
+                // },
+            ],
             label: None,
         });
 
@@ -111,10 +446,14 @@ impl Grid {
             let x = -half_width + i as f32 * spacing;
             vertices.push(Vertex {
                 position: [x, 0.0, -half_depth],
+                normal: [0.0, 0.0, 0.0],
+                tex_coords: [0.0, 0.0],
                 color: [1.0, 1.0, 1.0],
             });
             vertices.push(Vertex {
                 position: [x, 0.0, half_depth],
+                normal: [0.0, 0.0, 0.0],
+                tex_coords: [0.0, 0.0],
                 color: [1.0, 1.0, 1.0],
             });
             indices.push(i * 2);
@@ -126,18 +465,22 @@ impl Grid {
             let z = -half_depth + i as f32 * spacing;
             vertices.push(Vertex {
                 position: [-half_width, 0.0, z],
+                normal: [0.0, 0.0, 0.0],
+                tex_coords: [0.0, 0.0],
                 color: [1.0, 1.0, 1.0],
             });
             vertices.push(Vertex {
                 position: [half_width, 0.0, z],
+                normal: [0.0, 0.0, 0.0],
+                tex_coords: [0.0, 0.0],
                 color: [1.0, 1.0, 1.0],
             });
             indices.push(base + i * 2);
             indices.push(base + i * 2 + 1);
         }
 
-        web_sys::console::log_1(&format!("Grid vertices: {:?}", vertices).into());
-        web_sys::console::log_1(&format!("Grid indices: {:?}", indices).into());
+        // web_sys::console::log_1(&format!("Grid vertices: {:?}", vertices).into());
+        // web_sys::console::log_1(&format!("Grid indices: {:?}", indices).into());
 
         (vertices, indices)
     }
@@ -261,22 +604,32 @@ fn matrix4_to_raw_array(matrix: &Matrix4<f32>) -> [[f32; 4]; 4] {
 const VERTICES: &[Vertex] = &[
     Vertex {
         position: [0.0, 1.0, 0.0],
+        normal: [0.0, 0.0, 0.0],
+        tex_coords: [0.0, 0.0],
         color: [1.0, 0.0, 0.0],
     }, // Apex
     Vertex {
         position: [-1.0, -1.0, -1.0],
+        normal: [0.0, 0.0, 0.0],
+        tex_coords: [0.0, 0.0],
         color: [0.0, 1.0, 0.0],
     }, // Base vertices
     Vertex {
         position: [1.0, -1.0, -1.0],
+        normal: [0.0, 0.0, 0.0],
+        tex_coords: [0.0, 0.0],
         color: [0.0, 0.0, 1.0],
     },
     Vertex {
         position: [1.0, -1.0, 1.0],
+        normal: [0.0, 0.0, 0.0],
+        tex_coords: [0.0, 0.0],
         color: [1.0, 1.0, 0.0],
     },
     Vertex {
         position: [-1.0, -1.0, 1.0],
+        normal: [0.0, 0.0, 0.0],
+        tex_coords: [0.0, 0.0],
         color: [0.0, 1.0, 1.0],
     },
 ];
@@ -320,23 +673,49 @@ pub fn get_camera() -> &'static mut SimpleCamera {
 struct RendererState {
     pyramids: Vec<Pyramid>,
     grids: Vec<Grid>,
-    // other fields like device, queue, etc.
+    models: Vec<Model>,
 }
 
 impl RendererState {
-    fn new(device: &wgpu::Device, bind_group_layout: &wgpu::BindGroupLayout) -> Self {
+    async fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        model_bind_group_layout: &wgpu::BindGroupLayout,
+        texture_bind_group_layout: &wgpu::BindGroupLayout,
+        texture_render_mode_buffer: &wgpu::Buffer,
+        color_render_mode_buffer: &wgpu::Buffer,
+    ) -> Self {
         // create the utility grid(s)
         let mut grids = Vec::new();
-        grids.push(Grid::new(&device, &bind_group_layout));
+        grids.push(Grid::new(
+            &device,
+            &model_bind_group_layout,
+            color_render_mode_buffer,
+        ));
 
         let mut pyramids = Vec::new();
-        pyramids.push(Pyramid::new(device, bind_group_layout));
+        // pyramids.push(Pyramid::new(device, bind_group_layout, color_render_mode_buffer));
         // add more pyramids as needed
+
+        // add the sample model
+        let mut models = Vec::new();
+        models.push(
+            Model::from_glb(
+                "http://localhost:1420/public/samples/replicate-prediction-cheeseburger.glb",
+                device,
+                queue,
+                model_bind_group_layout,
+                texture_bind_group_layout,
+                texture_render_mode_buffer,
+                color_render_mode_buffer,
+            )
+            .await,
+        );
 
         Self {
             pyramids,
             grids,
-            // initialize other fields
+            models,
         }
     }
 }
@@ -507,33 +886,6 @@ pub async fn start_render_loop() {
         source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/primary_fragment.wgsl").into()),
     });
 
-    // let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-    //     label: Some("Vertex Buffer"),
-    //     contents: bytemuck::cast_slice(VERTICES),
-    //     usage: wgpu::BufferUsages::VERTEX,
-    // });
-
-    // let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-    //     label: Some("Index Buffer"),
-    //     contents: bytemuck::cast_slice(INDICES),
-    //     usage: wgpu::BufferUsages::INDEX,
-    // });
-
-    // Define the bind group layout and pipeline layout
-    // let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-    //     label: Some("Uniform Bind Group Layout"),
-    //     entries: &[wgpu::BindGroupLayoutEntry {
-    //         binding: 0,
-    //         visibility: wgpu::ShaderStages::VERTEX,
-    //         ty: wgpu::BindingType::Buffer {
-    //             ty: wgpu::BufferBindingType::Uniform,
-    //             has_dynamic_offset: false,
-    //             min_binding_size: None,
-    //         },
-    //         count: None,
-    //     }],
-    // });
-
     let camera = get_camera();
 
     camera.update_aspect_ratio(config.width as f32 / config.height as f32);
@@ -585,20 +937,38 @@ pub async fn start_render_loop() {
             label: Some("model_bind_group_layout"),
         });
 
-    // let grid_bind_group_layout =
-    //     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-    //         entries: &[wgpu::BindGroupLayoutEntry {
-    //             binding: 0,
-    //             visibility: wgpu::ShaderStages::VERTEX,
-    //             ty: wgpu::BindingType::Buffer {
-    //                 ty: wgpu::BufferBindingType::Uniform,
-    //                 has_dynamic_offset: false,
-    //                 min_binding_size: None,
-    //             },
-    //             count: None,
-    //         }], // Populate with necessary entries for your grid shader
-    //         label: Some("Grid Bind Group Layout"),
-    //     });
+    let texture_bind_group_layout =
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+            label: Some("Model Bind Group Layout"),
+        });
 
     let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         layout: &camera_bind_group_layout,
@@ -609,15 +979,58 @@ pub async fn start_render_loop() {
         label: Some("Bind Group"),
     });
 
+    // create renderMode uniform for button backgrounds
+    let color_render_mode_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Color Render Mode Buffer"),
+        contents: bytemuck::cast_slice(&[0i32]), // Default to normal mode
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+    });
+
+    let color_render_mode_buffer = Arc::new(color_render_mode_buffer);
+
+    // Create a buffer for the renderMode uniform
+    let texture_render_mode_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Texture Render Mode Buffer"),
+        contents: bytemuck::cast_slice(&[1i32]), // Default to text mode
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+    });
+
+    let texture_render_mode_buffer = Arc::new(texture_render_mode_buffer);
+
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Render Pipeline Layout"),
         bind_group_layouts: &[
             &camera_bind_group_layout,
             &model_bind_group_layout,
-            // &grid_bind_group_layout,
+            &texture_bind_group_layout,
         ],
         push_constant_ranges: &[],
     });
+
+    let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
+        size: wgpu::Extent3d {
+            width: width,
+            height: height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Depth24Plus,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        label: Some("Depth Texture"),
+        view_formats: &[],
+    });
+
+    let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+    let depth_stencil_state = wgpu::DepthStencilState {
+        format: wgpu::TextureFormat::Depth24Plus,
+        depth_write_enabled: true,
+        depth_compare: wgpu::CompareFunction::Less,
+        stencil: wgpu::StencilState::default(),
+        bias: wgpu::DepthBiasState::default(),
+    };
 
     // Create the render pipeline
     let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -648,11 +1061,13 @@ pub async fn start_render_loop() {
             strip_index_format: None,
             front_face: wgpu::FrontFace::Ccw,
             cull_mode: Some(wgpu::Face::Back),
+            // cull_mode: None,
             polygon_mode: wgpu::PolygonMode::Fill,
             unclipped_depth: false,
             conservative: false,
         },
-        depth_stencil: None,
+        // depth_stencil: None,
+        depth_stencil: Some(depth_stencil_state),
         multisample: wgpu::MultisampleState {
             count: 1,
             mask: !0,
@@ -661,7 +1076,23 @@ pub async fn start_render_loop() {
         multiview: None,
     });
 
-    let mut state = RendererState::new(&device, &model_bind_group_layout);
+    // let context = generate_context!();
+    // let package_info = context.package_info();
+    // let env = context.env();
+
+    // let resource_dir = resource_dir(&package_info, &env).unwrap();
+
+    // web_sys::console::log_1(&format!("resource_dir: {:?}", resource_dir).into());
+
+    let mut state = RendererState::new(
+        &device,
+        &queue,
+        &model_bind_group_layout,
+        &texture_bind_group_layout,
+        &texture_render_mode_buffer,
+        &color_render_mode_buffer,
+    )
+    .await;
     unsafe {
         RENDERER_STATE = Some(state);
         RENDERER_STATE_INIT.with(|init| {
@@ -683,6 +1114,7 @@ pub async fn start_render_loop() {
             &device,
             &queue,
             &render_pipeline,
+            &depth_view,
             // &vertex_buffer,
             // &index_buffer,
             // &uniform_buffer,
@@ -714,6 +1146,7 @@ fn render_frame(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     render_pipeline: &wgpu::RenderPipeline,
+    depth_view: &wgpu::TextureView,
     // vertex_buffer: &wgpu::Buffer,
     // index_buffer: &wgpu::Buffer,
     camera_bind_group: &wgpu::BindGroup,
@@ -752,7 +1185,15 @@ fn render_frame(
                     store: wgpu::StoreOp::Store,
                 },
             })],
-            depth_stencil_attachment: None,
+            // depth_stencil_attachment: None,
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &depth_view, // This is the depth texture view
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0), // Clear to max depth
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None, // Set this if using stencil
+            }),
             timestamp_writes: None,
             occlusion_query_set: None,
         });
@@ -772,26 +1213,41 @@ fn render_frame(
         );
 
         // draw utility grids
-        for grid in &state.grids {
-            render_pass.set_bind_group(0, &camera_bind_group, &[]);
-            render_pass.set_bind_group(1, &grid.bind_group, &[]);
+        // for grid in &state.grids {
+        //     render_pass.set_bind_group(0, &camera_bind_group, &[]);
+        //     render_pass.set_bind_group(1, &grid.bind_group, &[]);
+        // TODO: texture_bind_group?
 
-            render_pass.set_vertex_buffer(0, grid.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(grid.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        //     render_pass.set_vertex_buffer(0, grid.vertex_buffer.slice(..));
+        //     render_pass.set_index_buffer(grid.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-            render_pass.draw_indexed(0..grid.index_count, 0, 0..1);
-        }
+        //     render_pass.draw_indexed(0..grid.index_count, 0, 0..1);
+        // }
 
-        // draw pyramids
-        for pyramid in &state.pyramids {
-            pyramid.update_uniform_buffer(&queue);
-            render_pass.set_bind_group(0, &camera_bind_group, &[]);
-            render_pass.set_bind_group(1, &pyramid.bind_group, &[]);
+        // // draw pyramids
+        // for pyramid in &state.pyramids {
+        //     pyramid.update_uniform_buffer(&queue);
+        //     render_pass.set_bind_group(0, &camera_bind_group, &[]);
+        //     render_pass.set_bind_group(1, &pyramid.bind_group, &[]);
 
-            render_pass.set_vertex_buffer(0, pyramid.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(pyramid.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        //     render_pass.set_vertex_buffer(0, pyramid.vertex_buffer.slice(..));
+        //     render_pass.set_index_buffer(pyramid.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-            render_pass.draw_indexed(0..INDICES.len() as u32, 0, 0..1);
+        //     render_pass.draw_indexed(0..INDICES.len() as u32, 0, 0..1);
+        // }
+
+        for model in &state.models {
+            for mesh in &model.meshes {
+                render_pass.set_bind_group(0, &camera_bind_group, &[]);
+                render_pass.set_bind_group(1, &mesh.bind_group, &[]);
+                render_pass.set_bind_group(2, &mesh.texture_bind_group, &[]);
+
+                render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                render_pass
+                    .set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+
+                render_pass.draw_indexed(0..mesh.index_count as u32, 0, 0..1);
+            }
         }
     }
 
@@ -883,7 +1339,7 @@ pub fn handle_mouse_move(dx: f32, dy: f32) {
     let camera = get_camera();
     let sensitivity = 0.005;
 
-    let dx = dx * sensitivity;
+    let dx = -dx * sensitivity;
     let dy = dy * sensitivity;
 
     camera.rotate(dx, dy);

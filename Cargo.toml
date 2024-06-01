@@ -18,6 +18,9 @@ winit = { version = "0.29.15", features = ["rwh_05"] }
 nalgebra = "0.32.5"
 nalgebra-glm = "0.18.0"
 bytemuck = "1.15.0"
+reqwest = "0.12.4"
+futures = "0.3"
+image = "0.25.1"
 
 [dependencies.web-sys]
 version = "0.3"
@@ -30,5 +33,15 @@ features = [
   "Gpu"
 ]
 
+[dependencies.gltf]
+version = "1"
+
+[build-dependencies]
+tauri-build = { version = "1.5.2", features = [] }
+
 [workspace]
 members = ["src-tauri"]
+
+[[bin]]
+name = "main"
+path = "src/main.rs"
