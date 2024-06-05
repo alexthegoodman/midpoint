@@ -6,7 +6,6 @@ use yew::prelude::*;
 
 use crate::renderer::core::handle_key_press;
 use crate::renderer::core::handle_mouse_move;
-// use crate::renderer::core::init_wgpu;
 use crate::renderer::core::start_render_loop;
 
 #[function_component]
@@ -15,11 +14,9 @@ pub fn SceneCanvas() -> Html {
     let gizmo = "translate";
 
     // camera tool (pan, zoom, rotate, orbit)
-    let camera = "pan";
+    let camera = "rotate";
 
-    // let is_dragging = use_state(|| false);
     let is_dragging = Rc::new(RefCell::new(false));
-    // let last_mouse_pos = use_state(|| (0.0, 0.0));
     let last_mouse_pos = Rc::new(RefCell::new((0.0, 0.0)));
 
     {
@@ -29,7 +26,6 @@ pub fn SceneCanvas() -> Html {
         use_effect(move || {
             web_sys::console::log_1(&"Init SceneCanvas".into());
             wasm_bindgen_futures::spawn_local(async {
-                // init_wgpu().await.unwrap();
                 start_render_loop().await;
             });
 
@@ -44,7 +40,6 @@ pub fn SceneCanvas() -> Html {
                     // Call a function to rotate the camera based on dx and dy
                     handle_mouse_move(dx, dy);
 
-                    // last_mouse_pos.set((event.client_x() as f32, event.client_y() as f32));
                     *last_mouse_pos.borrow_mut() =
                         (event.client_x() as f32, event.client_y() as f32);
                 }
@@ -73,9 +68,6 @@ pub fn SceneCanvas() -> Html {
         Callback::from(move |event: web_sys::PointerEvent| {
             web_sys::console::log_1(&"onmousedown (2)".into());
 
-            // is_dragging.set(true);
-            // last_mouse_pos.set((event.client_x() as f32, event.client_y() as f32));
-
             *is_dragging.borrow_mut() = true;
             *last_mouse_pos.borrow_mut() = (event.client_x() as f32, event.client_y() as f32);
         })
@@ -84,17 +76,9 @@ pub fn SceneCanvas() -> Html {
     let onmouseup = {
         let is_dragging = is_dragging.clone();
         Callback::from(move |_event: web_sys::PointerEvent| {
-            // is_dragging.set(false);
-
             *is_dragging.borrow_mut() = false;
         })
     };
-
-    // let onpointerdown = {
-    //     Callback::from(move |event: web_sys::PointerEvent| {
-    //         web_sys::console::log_1(&"onpointerdown".into());
-    //     })
-    // };
 
     let onkeydown = Callback::from(|event: KeyboardEvent| {
         let key = event.key();
@@ -109,13 +93,8 @@ pub fn SceneCanvas() -> Html {
                 width="1000"
                 height="600"
                 onkeydown={onkeydown}
-                // onmousedown={onmousedown}
-                // onmouseup={onmouseup}
                 onpointerdown={onmousedown}
                 onpointerup={onmouseup}
-                // onpointermove={|event: web_sys::PointerEvent| {
-                //     web_sys::console::log_1(&"onpointermove".into());
-                // }}
             ></canvas>
         </div>
     }

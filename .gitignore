@@ -2,3 +2,5 @@
 /target/
 /Cargo.lock
 node_modules
+public/samples/BarramundiFish.glb
+public/samples/Duck.glb
