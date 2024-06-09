@@ -3,6 +3,7 @@ mod app;
 use app::App;
 
 mod components;
+mod contexts;
 mod renderer;
 
 fn main() {

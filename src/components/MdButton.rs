@@ -58,10 +58,17 @@ pub fn MdButton(props: &MdButtonProps) -> Html {
         MdButtonKind::MediumShadow => "medium-shadow",
     };
 
+    let onclick = {
+        let on_click = props.on_click.clone();
+        Callback::from(move |_: MouseEvent| {
+            on_click.emit(());
+        })
+    };
+
     html! {
         <button
             class={format!("btn {} {}", variant, kind)}
-            // onclick={props.on_click.clone()}
+            onclick={onclick}
             disabled={props.disabled}
         >
             if !props.icon.is_empty() {

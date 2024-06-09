@@ -4,9 +4,9 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
-use crate::components::MdButton::{MdButton, MdButtonKind, MdButtonVariant};
-use crate::components::SceneCanvas::SceneCanvas;
+use crate::components::PrimaryView::PrimaryView;
 use crate::components::ViewNav::ViewNav;
+use crate::contexts::global::{GlobalContextType, GlobalState};
 
 #[wasm_bindgen]
 extern "C" {
@@ -16,24 +16,15 @@ extern "C" {
 
 #[function_component(App)]
 pub fn app() -> Html {
-    html! {
-        <main class="container">
-            <ViewNav />
-            <section>
-                <div class="toolbar">
-                    <MdButton
-                        label="Import"
-                        icon={""}
-                        on_click={Callback::noop()}
-                        disabled={false}
-                        kind={MdButtonKind::SmallShort}
-                        variant={MdButtonVariant::Green}
-                    />
-                </div>
+    let global_state = use_reducer(GlobalState::default);
 
-                <SceneCanvas />
-            </section>
-        </main>
+    html! {
+        <ContextProvider<GlobalContextType> context={global_state}>
+            <main class="container">
+                <ViewNav />
+                <PrimaryView />
+            </main>
+        </ContextProvider<GlobalContextType>>
     }
 }
 
