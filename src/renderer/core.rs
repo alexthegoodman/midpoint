@@ -9,8 +9,6 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-use crate::renderer::SimpleCamera::SimpleCamera;
-
 use bytemuck::{Pod, Zeroable};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -26,6 +24,7 @@ use std::sync::Arc;
 use crate::renderer::shapes::Pyramid::Pyramid;
 use crate::renderer::Grid::Grid;
 use crate::renderer::Model::{Mesh, Model};
+use crate::renderer::SimpleCamera::SimpleCamera;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -298,16 +297,8 @@ pub async fn start_render_loop() {
     let camera = get_camera();
 
     camera.update_aspect_ratio(config.width as f32 / config.height as f32);
-
-    // hardcode position test
-    // camera.position = Point3::new(0.0, 0.0, 10.0);
-
-    // let usable_camera = camera.clone();
-    // let usable_camera = usable_camera.borrow_mut();
-
-    // Create the uniform buffer for the camera
-    // let camera_matrix = camera.build_view_projection_matrix();
     camera.update_view_projection_matrix();
+
     let camera_matrix = camera.view_projection_matrix;
     let camera_uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Camera Uniform Buffer"),
@@ -388,7 +379,6 @@ pub async fn start_render_loop() {
         label: Some("Bind Group"),
     });
 
-    // create renderMode uniform for button backgrounds
     let color_render_mode_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Color Render Mode Buffer"),
         contents: bytemuck::cast_slice(&[0i32]), // Default to normal mode
@@ -397,7 +387,6 @@ pub async fn start_render_loop() {
 
     let color_render_mode_buffer = Arc::new(color_render_mode_buffer);
 
-    // Create a buffer for the renderMode uniform
     let texture_render_mode_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("Texture Render Mode Buffer"),
         contents: bytemuck::cast_slice(&[1i32]), // Default to text mode
@@ -485,14 +474,6 @@ pub async fn start_render_loop() {
         multiview: None,
     });
 
-    // let context = generate_context!();
-    // let package_info = context.package_info();
-    // let env = context.env();
-
-    // let resource_dir = resource_dir(&package_info, &env).unwrap();
-
-    // web_sys::console::log_1(&format!("resource_dir: {:?}", resource_dir).into());
-
     let mut state = RendererState::new(
         &device,
         &queue,
@@ -516,7 +497,6 @@ pub async fn start_render_loop() {
     let g = f.clone();
 
     let closure = Closure::wrap(Box::new(move || {
-        // Call your rendering function here
         render_frame(
             &state,
             &surface,
@@ -524,11 +504,7 @@ pub async fn start_render_loop() {
             &queue,
             &render_pipeline,
             &depth_view,
-            // &vertex_buffer,
-            // &index_buffer,
-            // &uniform_buffer,
             &camera_bind_group,
-            // camera,
             &camera_uniform_buffer,
         );
 
@@ -556,11 +532,8 @@ fn render_frame(
     queue: &wgpu::Queue,
     render_pipeline: &wgpu::RenderPipeline,
     depth_view: &wgpu::TextureView,
-    // vertex_buffer: &wgpu::Buffer,
-    // index_buffer: &wgpu::Buffer,
     camera_bind_group: &wgpu::BindGroup,
     camera_uniform_buffer: &wgpu::Buffer,
-    // camera: &mut SimpleCamera,
 ) {
     // draw frames...
     let mut camera = get_camera();
@@ -610,10 +583,7 @@ fn render_frame(
         // draw calls...
         render_pass.set_pipeline(&render_pipeline);
 
-        // In the render loop, update the uniform buffer if necessary
-        // TODO: why uniform if updating every frame?
         camera.update();
-        // web_sys::console::log_1(&format!("Camera position: {:?}", camera.position).into());
         let camera_matrix = camera.view_projection_matrix;
         queue.write_buffer(
             &camera_uniform_buffer,
@@ -669,7 +639,6 @@ pub fn handle_key_press(key_code: String, is_pressed: bool) {
     let camera = get_camera();
     let state = get_renderer_state();
 
-    println!("Key pressed: {}", key_code);
     web_sys::console::log_1(&format!("Key pressed (2): {}", key_code).into());
 
     match key_code.as_str() {

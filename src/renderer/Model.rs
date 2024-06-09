@@ -10,8 +10,6 @@ use crate::renderer::core::Vertex;
 use crate::renderer::shapes::Pyramid::matrix4_to_raw_array;
 
 pub struct Mesh {
-    // vertices: Vec<Vertex>,
-    // indices: Vec<u32>, // TODO: not used? no reason to store here
     pub transform: Matrix4<f32>,
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
@@ -171,27 +169,6 @@ impl Model {
                     .map(|v| v.into_f32().collect())
                     .unwrap_or_else(|| vec![[0.0, 0.0]; positions.len()]);
 
-                // web_sys::console::log_1(&format!("Model positions: {:?}", positions.len()).into());
-                // web_sys::console::log_1(&format!("Model colors: {:?}", colors.len()).into());
-                // web_sys::console::log_1(&format!("Model normals: {:?}", normals.len()).into());
-                // web_sys::console::log_1(
-                //     &format!("Model tex_coords: {:?}", tex_coords.len()).into(),
-                // );
-
-                // if uses_textures {
-                //     assert_eq!(
-                //         positions.len(),
-                //         tex_coords.len(),
-                //         "Positions and tex_coords must have the same length"
-                //     );
-                // } else {
-                //     assert_eq!(
-                //         positions.len(),
-                //         colors.len(),
-                //         "Positions and colors must have the same length"
-                //     );
-                // }
-
                 let vertices: Vec<Vertex> = positions
                     .zip(normals.iter())
                     .zip(tex_coords.iter())
@@ -308,8 +285,6 @@ impl Model {
                 };
 
                 meshes.push(Mesh {
-                    // vertices: vertices.clone(),
-                    // indices: indices.clone(), // TODO: expensive?
                     transform: Matrix4::identity(),
                     vertex_buffer,
                     index_buffer,

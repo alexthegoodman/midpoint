@@ -23,7 +23,7 @@ pub fn SceneCanvas() -> Html {
         let is_dragging = is_dragging.clone();
         let last_mouse_pos = last_mouse_pos.clone();
 
-        use_effect(move || {
+        use_effect_with((), move |_| {
             web_sys::console::log_1(&"Init SceneCanvas".into());
             wasm_bindgen_futures::spawn_local(async {
                 start_render_loop().await;
