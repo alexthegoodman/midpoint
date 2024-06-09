@@ -6,12 +6,12 @@ use yew::prelude::*;
 
 use crate::{
     components::MdButton::{MdButton, MdButtonKind, MdButtonVariant},
-    contexts::global::{GlobalAction, GlobalContextType},
+    contexts::local::{LocalAction, LocalContextType},
 };
 
 #[function_component]
 pub fn ViewNav() -> Html {
-    let global_context = use_context::<GlobalContextType>().expect("No GlobalContext found");
+    let local_context = use_context::<LocalContextType>().expect("No LocalContext found");
 
     html! {
         <nav
@@ -21,10 +21,10 @@ pub fn ViewNav() -> Html {
                 label=""
                 icon={"panorama"}
                 on_click={Callback::from({
-                    let global_context = global_context.clone();
+                    let local_context = local_context.clone();
                     move |_| {
                         web_sys::console::log_1(&"Enter concepts".into());
-                        global_context.dispatch(GlobalAction::SetRoute("/concepts".to_string()));
+                        local_context.dispatch(LocalAction::SetRoute("/concepts".to_string()));
                     }
                 })}
                 disabled={false}
@@ -35,9 +35,9 @@ pub fn ViewNav() -> Html {
                 label=""
                 icon={"map-trifold"}
                 on_click={Callback::from({
-                    let global_context = global_context.clone();
+                    let local_context = local_context.clone();
                     move |_| {
-                        global_context.dispatch(GlobalAction::SetRoute("/map".to_string()));
+                        local_context.dispatch(LocalAction::SetRoute("/map".to_string()));
                     }
                 })}
                 disabled={false}
@@ -48,9 +48,9 @@ pub fn ViewNav() -> Html {
                 label=""
                 icon={"book-open"}
                 on_click={Callback::from({
-                    let global_context = global_context.clone();
+                    let local_context = local_context.clone();
                     move |_| {
-                        global_context.dispatch(GlobalAction::SetRoute("/story".to_string()));
+                        local_context.dispatch(LocalAction::SetRoute("/story".to_string()));
                     }
                 })}
                 disabled={false}
@@ -61,9 +61,9 @@ pub fn ViewNav() -> Html {
                 label=""
                 icon={"cube-focus"}
                 on_click={Callback::from({
-                    let global_context = global_context.clone();
+                    let local_context = local_context.clone();
                     move |_| {
-                        global_context.dispatch(GlobalAction::SetRoute("/scene".to_string()));
+                        local_context.dispatch(LocalAction::SetRoute("/scene".to_string()));
                     }
                 })}
                 disabled={false}
@@ -74,9 +74,9 @@ pub fn ViewNav() -> Html {
                 label=""
                 icon={"faders"}
                 on_click={Callback::from({
-                    let global_context = global_context.clone();
+                    let local_context = local_context.clone();
                     move |_| {
-                        global_context.dispatch(GlobalAction::SetRoute("/audio".to_string()));
+                        local_context.dispatch(LocalAction::SetRoute("/audio".to_string()));
                     }
                 })}
                 disabled={false}
@@ -87,9 +87,9 @@ pub fn ViewNav() -> Html {
                 label=""
                 icon={"speedometer"}
                 on_click={Callback::from({
-                    let global_context = global_context.clone();
+                    let local_context = local_context.clone();
                     move |_| {
-                        global_context.dispatch(GlobalAction::SetRoute("/performance".to_string()));
+                        local_context.dispatch(LocalAction::SetRoute("/performance".to_string()));
                     }
                 })}
                 disabled={false}
@@ -100,9 +100,9 @@ pub fn ViewNav() -> Html {
                 label=""
                 icon={"gear"}
                 on_click={Callback::from({
-                    let global_context = global_context.clone();
+                    let local_context = local_context.clone();
                     move |_| {
-                        global_context.dispatch(GlobalAction::SetRoute("/settings".to_string()));
+                        local_context.dispatch(LocalAction::SetRoute("/settings".to_string()));
                     }
                 })}
                 disabled={false}

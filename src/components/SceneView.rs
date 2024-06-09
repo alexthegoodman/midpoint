@@ -2,11 +2,11 @@ use yew::prelude::*;
 
 use crate::components::MdButton::{MdButton, MdButtonKind, MdButtonVariant};
 use crate::components::SceneCanvas::SceneCanvas;
-use crate::contexts::global::GlobalContextType;
+use crate::contexts::local::LocalContextType;
 
 #[function_component(SceneView)]
 pub fn scene_view() -> Html {
-    // let global_context = use_context::<GlobalContextType>().expect("No GlobalContext found");
+    // let local_context = use_context::<LocalContextType>().expect("No LocalContext found");
 
     html! {
         <>

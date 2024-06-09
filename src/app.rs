@@ -5,26 +5,31 @@ use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
 use crate::components::PrimaryView::PrimaryView;
+use crate::components::TokenLoader::TokenLoader;
 use crate::components::ViewNav::ViewNav;
-use crate::contexts::global::{GlobalContextType, GlobalState};
+use crate::contexts::local::{LocalContextType, LocalState};
 
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "tauri"])]
-    async fn invoke(cmd: &str, args: JsValue) -> JsValue;
+    pub async fn invoke(cmd: &str, args: JsValue) -> JsValue;
 }
 
 #[function_component(App)]
 pub fn app() -> Html {
-    let global_state = use_reducer(GlobalState::default);
+    let local_state = use_reducer(LocalState::default);
 
     html! {
-        <ContextProvider<GlobalContextType> context={global_state}>
+        <ContextProvider<LocalContextType> context={local_state}>
             <main class="container">
+                <TokenLoader />
                 <ViewNav />
-                <PrimaryView />
+                <section>
+                    // <PrimaryToolbar />
+                    <PrimaryView />
+                </section>
             </main>
-        </ContextProvider<GlobalContextType>>
+        </ContextProvider<LocalContextType>>
     }
 }
 
