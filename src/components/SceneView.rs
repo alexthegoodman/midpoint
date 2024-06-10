@@ -16,6 +16,7 @@ pub fn scene_view() -> Html {
                     icon={""}
                     on_click={Callback::noop()}
                     disabled={false}
+                    loading={false}
                     kind={MdButtonKind::SmallShort}
                     variant={MdButtonVariant::Green}
                 />

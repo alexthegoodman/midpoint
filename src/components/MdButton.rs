@@ -33,6 +33,7 @@ pub struct MdButtonProps {
     pub icon: String,
     pub on_click: Callback<()>,
     pub disabled: bool,
+    pub loading: bool,
     pub kind: MdButtonKind,
     pub variant: MdButtonVariant,
 }
@@ -71,14 +72,22 @@ pub fn MdButton(props: &MdButtonProps) -> Html {
             onclick={onclick}
             disabled={props.disabled}
         >
-            if !props.icon.is_empty() {
+            if !props.loading {
+                if !props.icon.is_empty() {
+                    <MdIcon
+                        icon={props.icon.clone()}
+                        width={"40px".to_string()}
+                        height={"40px".to_string()}
+                    />
+                }
+                { &props.label }
+            } else {
                 <MdIcon
-                    icon={props.icon.clone()}
-                    width={"40px".to_string()}
-                    height={"40px".to_string()}
+                    icon={"spinner".to_string()}
+                    width={"25px".to_string()}
+                    height={"25px".to_string()}
                 />
             }
-            { &props.label }
         </button>
     }
 }

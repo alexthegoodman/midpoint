@@ -1,4 +1,5 @@
 pub mod FileBrowser;
+pub mod FileViewer;
 pub mod MdButton;
 pub mod MdIcon;
 pub mod PrimaryToolbar;

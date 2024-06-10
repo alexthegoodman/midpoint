@@ -3,9 +3,11 @@ use serde_wasm_bindgen::to_value;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
+use crate::components::FileBrowser::{FileBrowser, FileKind, FileVariant};
+use crate::components::FileViewer::FileViewer;
 use crate::components::MdButton::{MdButton, MdButtonKind, MdButtonVariant};
 use crate::components::SceneView::SceneView;
-use crate::contexts::local::LocalContextType;
+use crate::contexts::local::{LocalAction, LocalContextType};
 use crate::gql::createMdProject::create_md_project;
 
 #[derive(Serialize)]
@@ -63,15 +65,20 @@ pub fn primary_view() -> Html {
                                         let projectId = md_project.expect("Couldn't unwrap project").createMdProject.id;
 
                                         // create project folder within sync folder: /CommonOSFiles/midpoint/projects/project_id/
-                                        let params = to_value(&CreateProjectParams { projectId }).unwrap();
+                                        let params = to_value(&CreateProjectParams { projectId: projectId.clone() }).unwrap();
                                         let result = crate::app::invoke("create_project", params).await;
 
+                                        local_context.dispatch(LocalAction::SetCurrentProject(projectId.clone()));
+
                                         loading.set(false);
+
+                                        local_context.dispatch(LocalAction::SetRoute("/concepts".to_string()));
                                     });
 
                                 }
                             })}
                             disabled={*loading}
+                            loading={*loading}
                             kind={MdButtonKind::SmallShort}
                             variant={MdButtonVariant::Green}
                         />
@@ -85,6 +92,7 @@ pub fn primary_view() -> Html {
                                 }
                             })}
                             disabled={false}
+                            loading={false}
                             kind={MdButtonKind::SmallShort}
                             variant={MdButtonVariant::Green}
                         />
@@ -92,15 +100,18 @@ pub fn primary_view() -> Html {
                 </>
             } else if local_context.route == "/concepts".to_string() {
                 <>
-                    // <FileBrowser />
-                    // <section>
-                    //     <FileViewer />
-                    // </section>
+                    <FileBrowser variant={FileVariant::Concept} kind={FileKind::Image} />
+                    <section>
+                        <FileViewer />
+                    </section>
                 </>
             }
 
             <div style={"display: ".to_owned() + &scene_display}>
-                <SceneView />
+                <FileBrowser variant={FileVariant::Asset} kind={FileKind::Model} />
+                <section>
+                    <SceneView />
+                </section>
             </div>
         </section>
     }

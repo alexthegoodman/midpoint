@@ -13,6 +13,29 @@ use crate::{
 pub fn ViewNav() -> Html {
     let local_context = use_context::<LocalContextType>().expect("No LocalContext found");
 
+    if local_context.current_project_id.is_none() {
+        return html! {
+            <nav
+                class="view-nav"
+            >
+                <MdButton
+                    label=""
+                    icon={"sparkle"}
+                    on_click={Callback::from({
+                        let local_context = local_context.clone();
+                        move |_| {
+                            local_context.dispatch(LocalAction::SetRoute("/".to_string()));
+                        }
+                    })}
+                    disabled={false}
+                    loading={false}
+                    kind={MdButtonKind::MediumShadow}
+                    variant={MdButtonVariant::Light}
+                />
+            </nav>
+        };
+    }
+
     html! {
         <nav
             class="view-nav"
@@ -28,6 +51,7 @@ pub fn ViewNav() -> Html {
                     }
                 })}
                 disabled={false}
+                loading={false}
                 kind={MdButtonKind::MediumShadow}
                 variant={MdButtonVariant::Light}
             />
@@ -41,6 +65,7 @@ pub fn ViewNav() -> Html {
                     }
                 })}
                 disabled={false}
+                loading={false}
                 kind={MdButtonKind::MediumShadow}
                 variant={MdButtonVariant::Light}
             />
@@ -54,6 +79,7 @@ pub fn ViewNav() -> Html {
                     }
                 })}
                 disabled={false}
+                loading={false}
                 kind={MdButtonKind::MediumShadow}
                 variant={MdButtonVariant::Light}
             />
@@ -67,6 +93,7 @@ pub fn ViewNav() -> Html {
                     }
                 })}
                 disabled={false}
+                loading={false}
                 kind={MdButtonKind::MediumShadow}
                 variant={MdButtonVariant::Light}
             />
@@ -80,6 +107,7 @@ pub fn ViewNav() -> Html {
                     }
                 })}
                 disabled={false}
+                loading={false}
                 kind={MdButtonKind::MediumShadow}
                 variant={MdButtonVariant::Light}
             />
@@ -93,6 +121,7 @@ pub fn ViewNav() -> Html {
                     }
                 })}
                 disabled={false}
+                loading={false}
                 kind={MdButtonKind::MediumShadow}
                 variant={MdButtonVariant::Light}
             />
@@ -106,6 +135,7 @@ pub fn ViewNav() -> Html {
                     }
                 })}
                 disabled={false}
+                loading={false}
                 kind={MdButtonKind::MediumShadow}
                 variant={MdButtonVariant::Light}
             />

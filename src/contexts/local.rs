@@ -10,12 +10,15 @@ use serde::{Deserialize, Serialize};
 pub struct LocalState {
     pub route: String,
     pub token: Option<String>,
+    pub current_project_id: Option<String>,
 }
 
 pub enum LocalAction {
     SetRoute(String),
     SetToken(String),
     ClearToken,
+    SetCurrentProject(String),
+    ClearCurrentProject,
 }
 
 impl Default for LocalState {
@@ -23,6 +26,7 @@ impl Default for LocalState {
         Self {
             route: "/".to_string(),
             token: None,
+            current_project_id: None,
         }
     }
 }
@@ -42,6 +46,14 @@ impl Reducible for LocalState {
             },
             LocalAction::ClearToken => LocalState {
                 token: None,
+                ..(*self).clone() // Preserve other fields
+            },
+            LocalAction::SetCurrentProject(project_id) => LocalState {
+                current_project_id: Some(project_id),
+                ..(*self).clone() // Preserve other fields
+            },
+            LocalAction::ClearCurrentProject => LocalState {
+                current_project_id: None,
                 ..(*self).clone() // Preserve other fields
             },
         };
