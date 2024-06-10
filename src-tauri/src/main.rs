@@ -1,6 +1,8 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::fs;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::api::path::{app_data_dir, resolve_path, BaseDirectory};
 use tauri::{App, AppHandle, Manager};
@@ -39,6 +41,25 @@ fn read_auth_token(config: &Arc<tauri::Config>) -> String {
     auth_data
 }
 
+#[tauri::command]
+fn create_project(state: tauri::State<'_, AppState>, projectId: String) -> String {
+    let handle = &state.handle;
+    let config = handle.config();
+    let package_info = handle.package_info();
+    let env = handle.env();
+
+    let sync_dir = PathBuf::from("C:/Users/alext/CommonOSFiles");
+    let project_dir = PathBuf::from(format!(
+        "C:/Users/alext/CommonOSFiles/midpoint/projects/{}",
+        projectId
+    ));
+
+    // create project folder(s) within sync folder: /CommonOSFiles/midpoint/projects/project_id/
+    fs::create_dir_all(project_dir).expect("Couldn't create project directory");
+
+    "success".to_string()
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
@@ -49,7 +70,7 @@ fn main() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![read_token])
+        .invoke_handler(tauri::generate_handler![read_token, create_project])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

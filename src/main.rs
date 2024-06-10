@@ -4,6 +4,7 @@ use app::App;
 
 mod components;
 mod contexts;
+mod gql;
 mod renderer;
 
 fn main() {

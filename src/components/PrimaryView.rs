@@ -1,12 +1,25 @@
+use serde::Serialize;
+use serde_wasm_bindgen::to_value;
+use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
 use crate::components::MdButton::{MdButton, MdButtonKind, MdButtonVariant};
 use crate::components::SceneView::SceneView;
 use crate::contexts::local::LocalContextType;
+use crate::gql::createMdProject::create_md_project;
+
+#[derive(Serialize)]
+struct CreateProjectParams {
+    projectId: String,
+}
 
 #[function_component(PrimaryView)]
 pub fn primary_view() -> Html {
     let local_context = use_context::<LocalContextType>().expect("No LocalContext found");
+
+    // let local_state = &*local_context;
+
+    let loading = use_state(|| false);
 
     let mut scene_display = "none".to_string();
     if local_context.route == "/scene".to_string() {
@@ -35,14 +48,30 @@ pub fn primary_view() -> Html {
                             icon={""}
                             on_click={Callback::from({
                                 let local_context = local_context.clone();
+                                let loading = loading.clone();
                                 move |_| {
-                                    // local_context.dispatch(LocalAction::SetRoute("/map".to_string()));
+                                    let local_context = local_context.clone();
+                                    let loading = loading.clone();
 
-                                    // create cloud project via GraphQL or Socket
-                                    // create project folder within sync folder: /CommonOSFiles/midpoint/projects/project_id/
+                                    loading.set(true);
+
+                                    web_sys::console::log_1(&"Creating project...".into());
+
+                                    spawn_local(async move {
+                                        // create cloud project via GraphQL or Socket
+                                        let md_project = create_md_project(local_context.token.clone().expect("Failed token fetch")).await;
+                                        let projectId = md_project.expect("Couldn't unwrap project").createMdProject.id;
+
+                                        // create project folder within sync folder: /CommonOSFiles/midpoint/projects/project_id/
+                                        let params = to_value(&CreateProjectParams { projectId }).unwrap();
+                                        let result = crate::app::invoke("create_project", params).await;
+
+                                        loading.set(false);
+                                    });
+
                                 }
                             })}
-                            disabled={false}
+                            disabled={*loading}
                             kind={MdButtonKind::SmallShort}
                             variant={MdButtonVariant::Green}
                         />

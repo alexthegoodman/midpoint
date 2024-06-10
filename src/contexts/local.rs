@@ -4,7 +4,9 @@ use std::rc::Rc;
 use yew::functional::*;
 use yew::prelude::*;
 
-#[derive(Clone, PartialEq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct LocalState {
     pub route: String,
     pub token: Option<String>,
