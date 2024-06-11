@@ -1,13 +1,18 @@
 use serde::Serialize;
+use serde_wasm_bindgen::to_value;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::spawn_local;
 use web_sys::{MessageEvent, WebSocket};
 use yew::functional::*;
 use yew::prelude::*;
 
 use crate::contexts::local::LocalContextType;
+use crate::contexts::saved::SavedAction;
+use crate::contexts::saved::SavedContextType;
+use crate::gql::getMdProject::get_md_project;
 
 #[derive(Serialize)]
 struct JoinGroupPayload {
@@ -22,6 +27,7 @@ pub struct ProjectSocketProps {
 #[function_component(ProjectSocket)]
 pub fn project_socket(props: &ProjectSocketProps) -> Html {
     let local_context = use_context::<LocalContextType>().expect("No LocalContext found");
+    let saved_context = use_context::<SavedContextType>().expect("No SavedContext found");
 
     // Use state to hold the WebSocket connection
     // let ws: UseStateHandle<Option<WebSocket>> = use_state(|| None);
@@ -88,10 +94,36 @@ pub fn project_socket(props: &ProjectSocketProps) -> Html {
             // Setup onmessage event
             let onmessage_callback = {
                 let ws_rc = ws_rc.clone();
+                // let local_context = local_context.clone();
+                // let saved_context = saved_context.clone();
+
                 Closure::<dyn FnMut(_)>::new(move |e: MessageEvent| {
                     if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
                         web_sys::console::info_1(&format!("Received message: {}", txt).into());
+
+                        let local_context = local_context.clone();
+                        let saved_context = saved_context.clone();
+
                         // {"command":"refreshContext"}
+                        if txt == r#"{"command":"refreshContext"}"#.to_string() {
+                            spawn_local(async move {
+                                let md_project = get_md_project(
+                                    local_context.token.clone().expect("Failed token fetch"),
+                                    local_context
+                                        .current_project_id
+                                        .clone()
+                                        .expect("Couldn't fetch project id"),
+                                )
+                                .await;
+                                let latest_project = md_project
+                                    .expect("Couldn't unwrap project context")
+                                    .getMdProject;
+                                let updated_context = latest_project.context;
+
+                                saved_context
+                                    .dispatch(SavedAction::RefreshContext(updated_context));
+                            });
+                        }
                     }
                 })
             };

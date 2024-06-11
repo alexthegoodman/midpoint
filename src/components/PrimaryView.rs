@@ -8,6 +8,7 @@ use crate::components::FileViewer::FileViewer;
 use crate::components::MdButton::{MdButton, MdButtonKind, MdButtonVariant};
 use crate::components::SceneView::SceneView;
 use crate::contexts::local::{LocalAction, LocalContextType};
+use crate::contexts::saved::SavedContextType;
 use crate::gql::createMdProject::create_md_project;
 
 #[derive(Serialize)]
@@ -18,6 +19,7 @@ struct CreateProjectParams {
 #[function_component(PrimaryView)]
 pub fn primary_view() -> Html {
     let local_context = use_context::<LocalContextType>().expect("No LocalContext found");
+    let saved_context = use_context::<SavedContextType>().expect("No SavedContext found");
 
     // let local_state = &*local_context;
 
@@ -102,7 +104,7 @@ pub fn primary_view() -> Html {
                 </>
             } else if local_context.route == "/concepts".to_string() {
                 <>
-                    <FileBrowser variant={FileVariant::Concept} kind={FileKind::Image} />
+                    <FileBrowser variant={FileVariant::Concept} kind={FileKind::Image} files={saved_context.concepts.clone()} />
                     <section>
                         <FileViewer />
                     </section>
@@ -110,7 +112,7 @@ pub fn primary_view() -> Html {
             }
 
             <div style={"display: ".to_owned() + &scene_display}>
-                <FileBrowser variant={FileVariant::Asset} kind={FileKind::Model} />
+                <FileBrowser variant={FileVariant::Asset} kind={FileKind::Model} files={saved_context.models.clone()} />
                 <section>
                     <SceneView />
                 </section>

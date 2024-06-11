@@ -8,7 +8,7 @@ use yew::prelude::*;
 
 use crate::{
     components::MdButton::{MdButton, MdButtonKind, MdButtonVariant},
-    contexts::local::LocalContextType,
+    contexts::{local::LocalContextType, saved::File},
     gql::generateConcept::generate_concept,
 };
 
@@ -28,6 +28,7 @@ pub enum FileKind {
 pub struct FileBrowserProps {
     pub variant: FileVariant,
     pub kind: FileKind,
+    pub files: Vec<File>,
 }
 
 #[derive(Serialize)]
@@ -58,9 +59,9 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
     };
 
     html! {
-        <section>
+        <section class="file-browser">
             if props.variant == FileVariant::Concept {
-                <div>
+                <div class="file-prompt">
                     <label>{"Describe your concept"}</label>
                     <textarea onchange={handle_concept_prompt_change} rows="3">{(*concept_prompt_value).clone()}</textarea>
                     <MdButton
@@ -123,6 +124,24 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
                         kind={MdButtonKind::SmallShort}
                         variant={MdButtonVariant::Green}
                     />
+                </div>
+            }
+            if props.kind == FileKind::Image {
+                <div class="file-grid">
+                    {
+                        props.files.clone().into_iter().map(|file| {
+                            html!{<div class="file-item" key={file.id}><img src={file.cloudfrontUrl} /><span>{file.fileName}</span><button>{"Generate Model"}</button></div>}
+                        }).collect::<Html>()
+                    }
+                </div>
+            }
+            if props.kind == FileKind::Model {
+                <div class="file-grid">
+                    {
+                        props.files.clone().into_iter().map(|file| {
+                            html!{<div class="file-item" key={file.id}><span>{file.fileName}</span><button>{"Add to Scene"}</button></div>}
+                        }).collect::<Html>()
+                    }
                 </div>
             }
         </section>

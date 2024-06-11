@@ -9,6 +9,7 @@ use crate::components::ProjectSocket::ProjectSocket;
 use crate::components::TokenLoader::TokenLoader;
 use crate::components::ViewNav::ViewNav;
 use crate::contexts::local::{LocalContextType, LocalState};
+use crate::contexts::saved::{SavedContextType, SavedState};
 
 #[wasm_bindgen]
 extern "C" {
@@ -19,18 +20,21 @@ extern "C" {
 #[function_component(App)]
 pub fn app() -> Html {
     let local_state = use_reducer(LocalState::default);
+    let saved_state = use_reducer(SavedState::default);
 
     html! {
         <ContextProvider<LocalContextType> context={local_state}>
-            <main class="container">
-                <TokenLoader />
-                <ProjectSocket />
-                <ViewNav />
-                <section>
-                    // <PrimaryToolbar />
-                    <PrimaryView />
-                </section>
-            </main>
+            <ContextProvider<SavedContextType> context={saved_state}>
+                <main class="container">
+                    <TokenLoader />
+                    <ProjectSocket />
+                    <ViewNav />
+                    <section>
+                        // <PrimaryToolbar />
+                        <PrimaryView />
+                    </section>
+                </main>
+            </ContextProvider<SavedContextType>>
         </ContextProvider<LocalContextType>>
     }
 }
