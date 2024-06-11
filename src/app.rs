@@ -5,6 +5,7 @@ use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
 use crate::components::PrimaryView::PrimaryView;
+use crate::components::ProjectSocket::ProjectSocket;
 use crate::components::TokenLoader::TokenLoader;
 use crate::components::ViewNav::ViewNav;
 use crate::contexts::local::{LocalContextType, LocalState};
@@ -23,6 +24,7 @@ pub fn app() -> Html {
         <ContextProvider<LocalContextType> context={local_state}>
             <main class="container">
                 <TokenLoader />
+                <ProjectSocket />
                 <ViewNav />
                 <section>
                     // <PrimaryToolbar />

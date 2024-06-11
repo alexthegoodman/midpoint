@@ -4,6 +4,7 @@ pub mod MdButton;
 pub mod MdIcon;
 pub mod PrimaryToolbar;
 pub mod PrimaryView;
+pub mod ProjectSocket;
 pub mod SceneCanvas;
 pub mod SceneView;
 pub mod TokenLoader;
