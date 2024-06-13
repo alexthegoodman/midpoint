@@ -2,7 +2,7 @@ use nalgebra::{Matrix4, Point3, Vector3};
 use wgpu::util::DeviceExt;
 
 use crate::renderer::core::Vertex;
-use crate::renderer::shapes::Pyramid::matrix4_to_raw_array;
+use crate::renderer::Transform::matrix4_to_raw_array;
 
 pub struct Grid {
     vertex_buffer: wgpu::Buffer,

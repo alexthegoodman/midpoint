@@ -7,10 +7,11 @@ use gltf::Gltf;
 use std::sync::Arc;
 
 use crate::renderer::core::Vertex;
-use crate::renderer::shapes::Pyramid::matrix4_to_raw_array;
+use crate::renderer::Transform::{matrix4_to_raw_array, Transform};
 
 pub struct Mesh {
-    pub transform: Matrix4<f32>,
+    // pub transform: Matrix4<f32>,
+    pub transform: Transform,
     pub vertex_buffer: wgpu::Buffer,
     pub index_buffer: wgpu::Buffer,
     pub index_count: u32,
@@ -20,6 +21,7 @@ pub struct Mesh {
 
 pub struct Model {
     pub meshes: Vec<Mesh>,
+    // pub transform: Transform,
 }
 
 impl Model {
@@ -285,7 +287,13 @@ impl Model {
                 };
 
                 meshes.push(Mesh {
-                    transform: Matrix4::identity(),
+                    // transform: Matrix4::identity(),
+                    transform: Transform::new(
+                        Vector3::new(0.0, 0.0, 0.0),
+                        Vector3::new(0.0, 0.0, 0.0),
+                        Vector3::new(1.0, 1.0, 1.0),
+                        uniform_buffer,
+                    ),
                     vertex_buffer,
                     index_buffer,
                     index_count: indices.len() as u32,

@@ -841,6 +841,7 @@ fn render_frame(
 
         for model in &state.models {
             for mesh in &model.meshes {
+                mesh.transform.update_uniform_buffer(&queue);
                 render_pass.set_bind_group(0, &camera_bind_group, &[]);
                 render_pass.set_bind_group(1, &mesh.bind_group, &[]);
                 render_pass.set_bind_group(2, &mesh.texture_bind_group, &[]);
@@ -862,7 +863,7 @@ fn render_frame(
 pub fn handle_key_press(key_code: String, is_pressed: bool) {
     let camera = get_camera();
     let state = get_renderer_state();
-    // let mut state_guard = get_renderer_state_read_lock();
+    let mut state_guard = state.lock().unwrap();
 
     web_sys::console::log_1(&format!("Key pressed (2): {}", key_code).into());
 
@@ -906,6 +907,12 @@ pub fn handle_key_press(key_code: String, is_pressed: bool) {
                 // state.pyramids[0].rotate(Vector3::new(0.0, 0.1, 0.0));
                 // test scale
                 // state.pyramids[0].scale(Vector3::new(1.1, 1.1, 1.1));
+
+                if state_guard.models.len() > 0 {
+                    state_guard.models[0].meshes[0]
+                        .transform
+                        .translate(Vector3::new(0.0, 0.1, 0.0));
+                }
             }
         }
         "ArrowDown" => {
