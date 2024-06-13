@@ -11,6 +11,7 @@ pub enum MdButtonVariant {
     Green,
     Dark,
     Light,
+    Negative,
 }
 
 #[derive(Clone, PartialEq)]
@@ -44,6 +45,7 @@ pub fn MdButton(props: &MdButtonProps) -> Html {
         MdButtonVariant::Green => "green",
         MdButtonVariant::Dark => "dark",
         MdButtonVariant::Light => "light",
+        MdButtonVariant::Negative => "negative",
     };
 
     let kind = match props.kind {

@@ -45,6 +45,10 @@ body {
   transition: 0.2s all;
 }
 
+.btn.negative {
+  background: linear-gradient(145deg, #f34b4b 65%, #e95524 100%);
+}
+
 .btn.light {
   background-color: white;
 }
