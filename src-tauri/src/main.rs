@@ -3,6 +3,8 @@
 
 use base64::decode;
 use std::fs;
+use std::fs::File;
+use std::io::Read;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -144,6 +146,32 @@ fn save_model(
     "success".to_string()
 }
 
+#[tauri::command]
+async fn read_model(
+    state: tauri::State<'_, AppState>,
+    projectId: String,
+    modelFilename: String,
+) -> Result<Vec<u8>, String> {
+    let handle = &state.handle;
+    let config = handle.config();
+    let package_info = handle.package_info();
+    let env = handle.env();
+
+    let sync_dir = PathBuf::from("C:/Users/alext/CommonOSFiles");
+    let model_path = sync_dir.join(format!(
+        "midpoint/projects/{}/models/{}",
+        projectId, modelFilename
+    ));
+
+    let mut file = File::open(&model_path).map_err(|e| format!("Failed to open model: {}", e))?;
+
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes)
+        .map_err(|e| format!("Failed to read model: {}", e))?;
+
+    Ok(bytes)
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
@@ -159,6 +187,7 @@ fn main() {
             create_project,
             save_concept,
             save_model,
+            read_model,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

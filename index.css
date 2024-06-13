@@ -105,3 +105,9 @@ input::placeholder, textarea::placeholder {
   color: #515151;
   opacity: 0.5;
 }
+
+.view-row {
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+}

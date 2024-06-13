@@ -109,3 +109,9 @@ input, textarea {
     opacity: 0.5;
   }
 }
+
+.view-row {
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+}

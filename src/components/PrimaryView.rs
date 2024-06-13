@@ -27,7 +27,7 @@ pub fn primary_view() -> Html {
 
     let mut scene_display = "none".to_string();
     if local_context.route == "/scene".to_string() {
-        scene_display = "block".to_string();
+        scene_display = "flex".to_string();
     }
 
     html! {
@@ -103,15 +103,15 @@ pub fn primary_view() -> Html {
                     }
                 </>
             } else if local_context.route == "/concepts".to_string() {
-                <>
+                <div class="view-row">
                     <FileBrowser variant={FileVariant::Concept} kind={FileKind::Image} files={saved_context.concepts.clone()} />
                     <section>
                         <FileViewer />
                     </section>
-                </>
+                </div>
             }
 
-            <div style={"display: ".to_owned() + &scene_display}>
+            <div class="view-row" style={"display: ".to_owned() + &scene_display}>
                 <FileBrowser variant={FileVariant::Asset} kind={FileKind::Model} files={saved_context.models.clone()} />
                 <section>
                     <SceneView />

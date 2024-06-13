@@ -12,6 +12,7 @@ use crate::{
     contexts::{local::LocalContextType, saved::File},
     gql::generateConcept::generate_concept,
     gql::generateModel::generate_model,
+    renderer::core::handle_add_model,
 };
 
 #[derive(Clone, PartialEq)]
@@ -45,6 +46,12 @@ struct SaveModelParams {
     projectId: String,
     modelBase64: String,
     modelFilename: String,
+}
+
+#[derive(Serialize)]
+pub struct ReadModelParams {
+    pub projectId: String,
+    pub modelFilename: String,
 }
 
 pub fn getFilename(concept_prompt_str: String) -> String {
@@ -217,10 +224,36 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
                 <div class="file-grid">
                     {
                         props.files.clone().into_iter().map(|file| {
+                            let cloudfrontUrl = file.cloudfrontUrl.clone();
+
                             html!{
                                 <div class="file-item" key={file.id}>
-                                    <span>{file.fileName}</span>
-                                    <button>{"Add to Scene"}</button>
+                                    <span>{file.fileName.clone()}</span>
+                                    <MdButton
+                                        label="Add to Scene"
+                                        icon={""}
+                                        on_click={Callback::from({
+                                            let local_context = local_context.clone();
+                                            let loading = loading.clone();
+                                            let fileName = file.fileName.clone();
+
+                                            move |_| {
+                                                let local_context = local_context.clone();
+                                                let loading = loading.clone();
+
+                                                web_sys::console::log_1(&"Adding model to scene...".into());
+
+                                                let projectId = local_context.current_project_id.clone().expect("No project selected?");
+                                                let modelFilename = fileName.clone();
+
+                                                handle_add_model(projectId, modelFilename);
+                                            }
+                                        })}
+                                        disabled={*loading}
+                                        loading={*loading}
+                                        kind={MdButtonKind::SmallShort}
+                                        variant={MdButtonVariant::Green}
+                                    />
                                 </div>
                             }
                         }).collect::<Html>()

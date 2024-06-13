@@ -1,5 +1,7 @@
 use nalgebra::{Matrix4, Point3, Vector3};
+use serde_wasm_bindgen::to_value;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlCanvasElement;
 use wgpu::util::DeviceExt;
 use winit::{
@@ -16,15 +18,19 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::window;
 
+use gloo_utils::format::JsValueSerdeExt;
 use gltf::buffer::{Source, View};
 use gltf::Glb;
 use gltf::Gltf;
-use std::sync::Arc;
+use std::ops::{Deref, DerefMut};
+use std::sync::Mutex;
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use wasm_bindgen_futures::future_to_promise;
 
-use crate::renderer::shapes::Pyramid::Pyramid;
 use crate::renderer::Grid::Grid;
 use crate::renderer::Model::{Mesh, Model};
 use crate::renderer::SimpleCamera::SimpleCamera;
+use crate::{components::FileBrowser::ReadModelParams, renderer::shapes::Pyramid::Pyramid};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -78,71 +84,255 @@ pub fn get_camera() -> &'static mut SimpleCamera {
     unsafe { CAMERA.as_mut().unwrap() }
 }
 
+// struct RendererState<'a> {
+
+// #[derive(std::ops::DerefMut)]
 struct RendererState {
     pyramids: Vec<Pyramid>,
     grids: Vec<Grid>,
     models: Vec<Model>,
+
+    device: Arc<wgpu::Device>,
+    queue: Arc<wgpu::Queue>,
+    model_bind_group_layout: Arc<wgpu::BindGroupLayout>,
+    texture_bind_group_layout: Arc<wgpu::BindGroupLayout>,
+    texture_render_mode_buffer: Arc<wgpu::Buffer>,
+    color_render_mode_buffer: Arc<wgpu::Buffer>,
 }
 
+// impl<'a> RendererState<'a> {
 impl RendererState {
     async fn new(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        model_bind_group_layout: &wgpu::BindGroupLayout,
-        texture_bind_group_layout: &wgpu::BindGroupLayout,
-        texture_render_mode_buffer: &wgpu::Buffer,
-        color_render_mode_buffer: &wgpu::Buffer,
+        device: Arc<wgpu::Device>,
+        queue: Arc<wgpu::Queue>,
+        model_bind_group_layout: Arc<wgpu::BindGroupLayout>,
+        texture_bind_group_layout: Arc<wgpu::BindGroupLayout>,
+        texture_render_mode_buffer: Arc<wgpu::Buffer>,
+        color_render_mode_buffer: Arc<wgpu::Buffer>,
     ) -> Self {
         // create the utility grid(s)
         let mut grids = Vec::new();
         grids.push(Grid::new(
             &device,
             &model_bind_group_layout,
-            color_render_mode_buffer,
+            &color_render_mode_buffer,
         ));
 
         let mut pyramids = Vec::new();
         // pyramids.push(Pyramid::new(device, bind_group_layout, color_render_mode_buffer));
         // add more pyramids as needed
 
-        // add the sample model
         let mut models = Vec::new();
-        models.push(
-            Model::from_glb(
-                "http://localhost:1420/public/samples/BarramundiFish.glb",
-                device,
-                queue,
-                model_bind_group_layout,
-                texture_bind_group_layout,
-                texture_render_mode_buffer,
-                color_render_mode_buffer,
-            )
-            .await,
-        );
 
         Self {
             pyramids,
             grids,
             models,
+
+            device,
+            queue,
+            model_bind_group_layout,
+            texture_bind_group_layout,
+            texture_render_mode_buffer,
+            color_render_mode_buffer,
         }
+    }
+
+    async fn add_model(&mut self, bytes: &Vec<u8>) {
+        let model = Model::from_glb(
+            bytes,
+            &self.device,
+            &self.queue,
+            &self.model_bind_group_layout,
+            &self.texture_bind_group_layout,
+            &self.texture_render_mode_buffer,
+            &self.color_render_mode_buffer,
+        )
+        .await;
+
+        self.models.push(model);
     }
 }
 
-static mut RENDERER_STATE: Option<RendererState> = None;
+// rc/refcell approach
+
+// use std::cell::RefCell;
+// use std::rc::Rc;
+
+// // Global mutable static variable for RendererState protected by an Rc and RefCell
+// static mut RENDERER_STATE: Option<Rc<RefCell<RendererState>>> = None;
+
+// thread_local! {
+//     static RENDERER_STATE_INIT: std::cell::Cell<bool> = std::cell::Cell::new(false);
+// }
+
+// // Function to initialize the RendererState
+// fn initialize_renderer_state(state: RendererState) {
+//     let state_refcell = Rc::new(RefCell::new(state));
+//     unsafe {
+//         RENDERER_STATE = Some(state_refcell);
+//     }
+//     RENDERER_STATE_INIT.with(|init| {
+//         init.set(true);
+//     });
+// }
+
+// // Function to get a mutable reference to the RendererState
+// pub fn get_renderer_state() -> &'static Rc<RefCell<RendererState>> {
+//     RENDERER_STATE_INIT.with(|init| {
+//         if !init.get() {
+//             panic!("RendererState not initialized");
+//         }
+//     });
+
+//     unsafe { RENDERER_STATE.as_ref().unwrap() }
+// }
+
+// arc approach
+
+// // Global mutable static variable for RendererState protected by a Mutex
+// static mut RENDERER_STATE: Option<Arc<RendererState>> = None;
+
+// thread_local! {
+//     static RENDERER_STATE_INIT: std::cell::Cell<bool> = std::cell::Cell::new(false);
+// }
+
+// // Function to initialize the RendererState
+// fn initialize_renderer_state(state: RendererState) {
+//     unsafe {
+//         RENDERER_STATE = Some(Arc::new(state));
+//     }
+//     RENDERER_STATE_INIT.with(|init| {
+//         init.set(true);
+//     });
+// }
+
+// // Function to get a mutable reference to the RendererState
+// pub fn get_renderer_state() -> &'static Arc<RendererState> {
+//     RENDERER_STATE_INIT.with(|init| {
+//         if !init.get() {
+//             panic!("RendererState not initialized");
+//         }
+//     });
+
+//     unsafe { RENDERER_STATE.as_ref().unwrap() }
+// }
+
+// arc 2
+
+// // Global mutable static variable for RendererState protected by an RwLock
+// static mut RENDERER_STATE: Option<Arc<RwLock<RendererState>>> = None;
+
+// // Function to initialize the RendererState
+// fn initialize_renderer_state(state: Arc<RwLock<RendererState>>) {
+//     unsafe {
+//         RENDERER_STATE = Some(state);
+//     }
+// }
+
+// // Function to get a read lock on the RendererState
+// pub fn get_renderer_state_read_lock() -> RwLockReadGuard<'static, RendererState> {
+//     unsafe {
+//         if let Some(state) = &RENDERER_STATE {
+//             state.read().unwrap()
+//         } else {
+//             panic!("RendererState not initialized");
+//         }
+//     }
+// }
+
+// // Function to get a write lock on the RendererState
+// pub fn get_renderer_state_write_lock() -> RwLockWriteGuard<'static, RendererState> {
+//     unsafe {
+//         if let Some(state) = &RENDERER_STATE {
+//             state.write().unwrap()
+//         } else {
+//             panic!("RendererState not initialized");
+//         }
+//     }
+// }
+
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static RENDERING_PAUSED: AtomicBool = AtomicBool::new(false);
+
+// Pause rendering
+fn pause_rendering() {
+    RENDERING_PAUSED.store(true, Ordering::SeqCst);
+}
+
+// Resume rendering
+fn resume_rendering() {
+    RENDERING_PAUSED.store(false, Ordering::SeqCst);
+}
+
+// Check if rendering is paused
+fn is_rendering_paused() -> bool {
+    RENDERING_PAUSED.load(Ordering::SeqCst)
+}
+
+// mutex approach
+
+// Global mutable static variable for RendererState protected by a Mutex
+static mut RENDERER_STATE: Option<Mutex<RendererState>> = None;
 
 thread_local! {
     static RENDERER_STATE_INIT: std::cell::Cell<bool> = std::cell::Cell::new(false);
 }
 
-pub fn get_renderer_state() -> &'static mut RendererState {
+// Function to initialize the RendererState
+fn initialize_renderer_state(state: RendererState) {
+    unsafe {
+        RENDERER_STATE = Some(Mutex::new(state));
+    }
+    RENDERER_STATE_INIT.with(|init| {
+        init.set(true);
+    });
+}
+
+// Function to get a mutable reference to the RendererState
+pub fn get_renderer_state() -> &'static Mutex<RendererState> {
     RENDERER_STATE_INIT.with(|init| {
         if !init.get() {
             panic!("RendererState not initialized");
         }
     });
 
-    unsafe { RENDERER_STATE.as_mut().unwrap() }
+    unsafe { RENDERER_STATE.as_ref().unwrap() }
 }
+
+// // direct deref approach
+
+// // Global mutable static variable for RendererState
+// static mut RENDERER_STATE: *mut RendererState = std::ptr::null_mut();
+
+// thread_local! {
+//     static RENDERER_STATE_INIT: std::cell::Cell<bool> = std::cell::Cell::new(false);
+// }
+
+// // Function to initialize the RendererState
+// fn initialize_renderer_state(mut state: RendererState) {
+//     unsafe {
+//         RENDERER_STATE = &mut state as *mut RendererState;
+//     }
+//     RENDERER_STATE_INIT.with(|init| {
+//         init.set(true);
+//     });
+// }
+
+// // Function to get a mutable reference to the RendererState
+// pub fn get_renderer_state() -> &'static mut RendererState {
+//     RENDERER_STATE_INIT.with(|init| {
+//         if !init.get() {
+//             panic!("RendererState not initialized");
+//         }
+//     });
+
+//     unsafe {
+//         assert!(!RENDERER_STATE.is_null(), "RendererState pointer is null");
+//         &mut *RENDERER_STATE
+//     }
+// }
 
 // native rendering loop
 // #[wasm_bindgen]
@@ -262,6 +452,9 @@ pub async fn start_render_loop() {
         .await
         .expect("Failed to create device");
 
+    let device = Arc::new(device);
+    let queue = Arc::new(queue);
+
     // let swap_chain_format: wgpu::TextureFormat = surface.get_preferred_format(&adapter).unwrap();
     let swapchain_capabilities = surface.get_capabilities(&adapter);
     let swap_chain_format = swapchain_capabilities.formats[0]; // Choosing the first available format
@@ -337,6 +530,8 @@ pub async fn start_render_loop() {
             label: Some("model_bind_group_layout"),
         });
 
+    let model_bind_group_layout = Arc::new(model_bind_group_layout);
+
     let texture_bind_group_layout =
         device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[
@@ -369,6 +564,8 @@ pub async fn start_render_loop() {
             ],
             label: Some("Model Bind Group Layout"),
         });
+
+    let texture_bind_group_layout = Arc::new(texture_bind_group_layout);
 
     let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
         layout: &camera_bind_group_layout,
@@ -474,39 +671,61 @@ pub async fn start_render_loop() {
         multiview: None,
     });
 
-    let mut state = RendererState::new(
-        &device,
-        &queue,
-        &model_bind_group_layout,
-        &texture_bind_group_layout,
-        &texture_render_mode_buffer,
-        &color_render_mode_buffer,
+    // let mut state = RendererState::new(
+    //     &device,
+    //     &queue,
+    //     &model_bind_group_layout,
+    //     &texture_bind_group_layout,
+    //     &texture_render_mode_buffer,
+    //     &color_render_mode_buffer,
+    // )
+    // .await;
+    // unsafe {
+    //     RENDERER_STATE = Some(state);
+    //     RENDERER_STATE_INIT.with(|init| {
+    //         init.set(true);
+    //     });
+    // }
+
+    // let state = get_renderer_state();
+
+    let state = RendererState::new(
+        device.clone(),
+        queue.clone(),
+        model_bind_group_layout.clone(),
+        texture_bind_group_layout.clone(),
+        texture_render_mode_buffer.clone(),
+        color_render_mode_buffer.clone(),
     )
     .await;
-    unsafe {
-        RENDERER_STATE = Some(state);
-        RENDERER_STATE_INIT.with(|init| {
-            init.set(true);
-        });
-    }
+
+    initialize_renderer_state(state);
 
     let state = get_renderer_state();
+    // let mut state_guard = get_renderer_state_read_lock();
 
     // web-based rendering loop
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
 
     let closure = Closure::wrap(Box::new(move || {
-        render_frame(
-            &state,
-            &surface,
-            &device,
-            &queue,
-            &render_pipeline,
-            &depth_view,
-            &camera_bind_group,
-            &camera_uniform_buffer,
-        );
+        if !is_rendering_paused() {
+            let device = device.clone();
+            let state_guard = state.lock().unwrap();
+
+            render_frame(
+                &state_guard,
+                &surface,
+                &device,
+                &queue,
+                &render_pipeline,
+                &depth_view,
+                &camera_bind_group,
+                &camera_uniform_buffer,
+            );
+
+            drop(state_guard);
+        }
 
         // Schedule the next frame
         request_animation_frame(f.borrow().as_ref().unwrap());
@@ -530,6 +749,8 @@ fn render_frame(
     surface: &wgpu::Surface,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
+    // device: Arc<wgpu::Device>,
+    // queue: Arc<wgpu::Queue>,
     render_pipeline: &wgpu::RenderPipeline,
     depth_view: &wgpu::TextureView,
     camera_bind_group: &wgpu::BindGroup,
@@ -615,6 +836,9 @@ fn render_frame(
         //     render_pass.draw_indexed(0..INDICES.len() as u32, 0, 0..1);
         // }
 
+        // web_sys::console::log_1(&"Model count...".into());
+        // web_sys::console::log_1(&state.models.len().into());
+
         for model in &state.models {
             for mesh in &model.meshes {
                 render_pass.set_bind_group(0, &camera_bind_group, &[]);
@@ -638,6 +862,7 @@ fn render_frame(
 pub fn handle_key_press(key_code: String, is_pressed: bool) {
     let camera = get_camera();
     let state = get_renderer_state();
+    // let mut state_guard = get_renderer_state_read_lock();
 
     web_sys::console::log_1(&format!("Key pressed (2): {}", key_code).into());
 
@@ -676,7 +901,7 @@ pub fn handle_key_press(key_code: String, is_pressed: bool) {
             if is_pressed {
                 // Handle the key press for ArrowUp
                 web_sys::console::log_1(&"Key ArrowUp pressed".into());
-                state.pyramids[0].translate(Vector3::new(0.0, 0.1, 0.0));
+                // state.pyramids[0].translate(Vector3::new(0.0, 0.1, 0.0));
                 // test rotation
                 // state.pyramids[0].rotate(Vector3::new(0.0, 0.1, 0.0));
                 // test scale
@@ -687,21 +912,21 @@ pub fn handle_key_press(key_code: String, is_pressed: bool) {
             if is_pressed {
                 // Handle the key press for ArrowDown
                 web_sys::console::log_1(&"Key ArrowDown pressed".into());
-                state.pyramids[0].translate(Vector3::new(0.0, -0.1, 0.0));
+                // state.pyramids[0].translate(Vector3::new(0.0, -0.1, 0.0));
             }
         }
         "ArrowLeft" => {
             if is_pressed {
                 // Handle the key press for ArrowLeft
                 web_sys::console::log_1(&"Key ArrowLeft pressed".into());
-                state.pyramids[0].translate(Vector3::new(-0.1, 0.0, 0.0));
+                // state.pyramids[0].translate(Vector3::new(-0.1, 0.0, 0.0));
             }
         }
         "ArrowRight" => {
             if is_pressed {
                 // Handle the key press for ArrowRight
                 web_sys::console::log_1(&"Key ArrowRight pressed".into());
-                state.pyramids[0].translate(Vector3::new(0.1, 0.0, 0.0));
+                // state.pyramids[0].translate(Vector3::new(0.1, 0.0, 0.0));
             }
         }
         _ => {
@@ -724,3 +949,46 @@ pub fn handle_mouse_move(dx: f32, dy: f32) {
 
     camera.update();
 }
+
+#[wasm_bindgen]
+pub fn handle_add_model(projectId: String, modelFilename: String) {
+    pause_rendering();
+
+    let state = get_renderer_state();
+    let mut state_guard = state.lock().unwrap();
+
+    // TODO: this spawn and async may be unncessary
+    spawn_local(async move {
+        // let mut state_guard = get_renderer_state_write_lock();
+
+        let params = to_value(&ReadModelParams {
+            projectId,
+            modelFilename,
+        })
+        .unwrap();
+        let bytes = crate::app::invoke("read_model", params).await;
+        let bytes = bytes
+            .into_serde()
+            .expect("Failed to transform byte string to value");
+
+        state_guard.add_model(&bytes).await;
+
+        drop(state_guard);
+
+        resume_rendering();
+    });
+}
+
+// #[wasm_bindgen]
+// pub async fn handle_add_model(url: String) -> Result<JsValue, JsValue> {
+//     let mut state_guard = get_renderer_state_write_lock();
+//     state_guard.add_model(&url).await;
+
+//     Ok(JsValue::null())
+// }
+
+// #[wasm_bindgen]
+// pub fn handle_add_model_promise(url: String) -> js_sys::Promise {
+//     let fut = handle_add_model(url);
+//     future_to_promise(fut)
+// }
