@@ -10,17 +10,17 @@ pub fn scene_view() -> Html {
 
     html! {
         <>
-            <div class="toolbar">
-                <MdButton
-                    label="Import"
-                    icon={""}
-                    on_click={Callback::noop()}
-                    disabled={false}
-                    loading={false}
-                    kind={MdButtonKind::SmallShort}
-                    variant={MdButtonVariant::Green}
-                />
-            </div>
+            // <div class="toolbar">
+            //     <MdButton
+            //         label="Import"
+            //         icon={""}
+            //         on_click={Callback::noop()}
+            //         disabled={false}
+            //         loading={false}
+            //         kind={MdButtonKind::SmallShort}
+            //         variant={MdButtonVariant::Green}
+            //     />
+            // </div>
 
             <SceneCanvas />
         </>

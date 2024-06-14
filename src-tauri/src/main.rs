@@ -2,6 +2,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use base64::decode;
+use image::io::Reader as ImageReader;
+use serde::Serialize;
+use std::convert::TryFrom;
 use std::fs;
 use std::fs::File;
 use std::io::Read;
@@ -10,6 +13,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::api::path::{app_data_dir, resolve_path, BaseDirectory};
 use tauri::{App, AppHandle, Manager};
+use tiff::decoder::{Decoder, DecodingResult};
 
 struct AppState {
     handle: AppHandle,
@@ -62,6 +66,130 @@ fn create_project(state: tauri::State<'_, AppState>, projectId: String) -> Strin
     fs::create_dir_all(project_dir).expect("Couldn't create project directory");
 
     "success".to_string()
+}
+
+#[derive(Serialize)]
+struct LandscapeData {
+    width: usize,
+    height: usize,
+    // data: Vec<u8>,
+    pixel_data: Vec<Vec<PixelData>>,
+}
+
+#[derive(Serialize)]
+struct PixelData {
+    height_value: f32,
+    position: [f32; 3],
+    tex_coords: [f32; 2],
+}
+
+fn read_tiff_heightmap(landscape_path: &str) -> (usize, usize, Vec<Vec<PixelData>>) {
+    let file = File::open(landscape_path).expect("Couldn't open tif file");
+    let mut decoder = Decoder::new(file).expect("Couldn't decode tif file");
+
+    let (width, height) = decoder.dimensions().expect("Couldn't get tif dimensions");
+
+    let width = usize::try_from(width).unwrap();
+    let height = usize::try_from(height).unwrap();
+
+    let image = match decoder
+        .read_image()
+        .expect("Couldn't read image data from tif")
+    {
+        DecodingResult::F32(vec) => vec,
+        _ => return (0, 0, Vec::new()),
+    };
+
+    let mut pixel_data = Vec::new();
+    let scale = 1.0;
+
+    for y in 0..height {
+        let mut row = Vec::new();
+        for x in 0..width {
+            let idx = (y * width + x) as usize;
+            let height_value = image[idx] * scale;
+
+            let position = [
+                x as f32 / width as f32 * 2.0 - 1.0,
+                height_value,
+                y as f32 / height as f32 * 2.0 - 1.0,
+            ];
+            let tex_coords = [x as f32 / width as f32, y as f32 / height as f32];
+
+            row.push(PixelData {
+                height_value,
+                position,
+                tex_coords,
+            });
+        }
+        pixel_data.push(row);
+    }
+
+    (width, height, pixel_data)
+}
+
+#[tauri::command]
+fn get_landscape_pixels(
+    state: tauri::State<'_, AppState>,
+    projectId: String,
+    landscapeFilename: String,
+) -> LandscapeData {
+    let handle = &state.handle;
+    let config = handle.config();
+    let package_info = handle.package_info();
+    let env = handle.env();
+
+    let sync_dir = PathBuf::from("C:/Users/alext/CommonOSFiles");
+    let landscapes_dir = sync_dir.join(format!("midpoint/projects/{}/landscapes", projectId));
+    let landscape_path = landscapes_dir.join(landscapeFilename);
+
+    // let img = ImageReader::open(landscape_path)
+    //     .expect("Couldn't open heightmap")
+    //     .decode()
+    //     .expect("Couldn't decode heightmap");
+    // // let heightmap = img.to_luma16();
+    // let heightmap = img.to_luma8();
+
+    // let width = heightmap.width() as usize;
+    // let height = heightmap.height() as usize;
+
+    // let mut pixel_data = Vec::new();
+
+    // let scale = 1.0;
+
+    // for y in 0..height {
+    //     let mut row = Vec::new();
+    //     for x in 0..width {
+    //         let pixel = heightmap.get_pixel(x as u32, y as u32);
+    //         let height_value = pixel[0] as f32 / 255.0 * scale;
+    //         let position = [
+    //             x as f32 / width as f32 * 2.0 - 1.0,
+    //             height_value,
+    //             y as f32 / height as f32 * 2.0 - 1.0,
+    //         ];
+    //         let tex_coords = [x as f32 / width as f32, y as f32 / height as f32];
+
+    //         row.push(PixelData {
+    //             height_value,
+    //             position,
+    //             tex_coords,
+    //         });
+    //     }
+    //     pixel_data.push(row);
+    // }
+
+    let (width, height, pixel_data) = read_tiff_heightmap(
+        landscape_path
+            .to_str()
+            .expect("Couldn't form landscape string"),
+    );
+
+    LandscapeData {
+        width,
+        height,
+        // data: heightmap.to_vec(),
+        pixel_data,
+    }
 }
 
 #[tauri::command]
@@ -172,6 +300,48 @@ async fn read_model(
     Ok(bytes)
 }
 
+#[tauri::command]
+fn save_landscape(
+    state: tauri::State<'_, AppState>,
+    projectId: String,
+    landscapeBase64: String,
+    landscapeFilename: String,
+) -> String {
+    let handle = &state.handle;
+    let config = handle.config();
+    let package_info = handle.package_info();
+    let env = handle.env();
+
+    let sync_dir = PathBuf::from("C:/Users/alext/CommonOSFiles");
+    let landscapes_dir = sync_dir.join(format!("midpoint/projects/{}/landscapes", projectId));
+
+    // Check if the concepts directory exists, create if it doesn't
+    if !Path::new(&landscapes_dir).exists() {
+        fs::create_dir_all(&landscapes_dir).expect("Couldn't create landscapes directory");
+    }
+
+    let landscape_path = landscapes_dir.join(landscapeFilename);
+
+    // Strip the "data:image/png;base64," prefix
+    // let base64_data = landscapeBase64
+    //     .strip_prefix("data:image/tiff;base64,")
+    //     .ok_or("Invalid base64 landscape string")
+    //     .expect("Couldn't get base64 string for landscape");
+    let base64_data = landscapeBase64;
+
+    // Decode the base64 string
+    let landscape_data = decode(base64_data)
+        .map_err(|e| format!("Couldn't decode base64 string for landscape: {}", e))
+        .expect("Couldn't decode base64 string for landscape");
+
+    // Save the decoded image data to a file
+    fs::write(landscape_path, landscape_data)
+        .map_err(|e| format!("Couldn't save landscape file: {}", e))
+        .expect("Couldn't save landscape file");
+
+    "success".to_string()
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
@@ -188,6 +358,8 @@ fn main() {
             save_concept,
             save_model,
             read_model,
+            get_landscape_pixels,
+            save_landscape,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

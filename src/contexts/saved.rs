@@ -18,6 +18,7 @@ pub struct File {
 pub struct SavedState {
     pub concepts: Vec<File>,
     pub models: Vec<File>,
+    pub landscapes: Option<Vec<File>>,
 }
 
 pub enum SavedAction {
@@ -31,6 +32,7 @@ impl Default for SavedState {
         Self {
             concepts: Vec::new(),
             models: Vec::new(),
+            landscapes: Some(Vec::new()),
         }
     }
 }

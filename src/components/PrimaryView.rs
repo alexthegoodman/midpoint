@@ -25,6 +25,7 @@ pub fn primary_view() -> Html {
     let saved_context = use_context::<SavedContextType>().expect("No SavedContext found");
 
     let loading = use_state(|| false);
+    let browser_tab = use_state(|| "models".to_string());
 
     let local_async = LocalAsync::new(local_context.clone());
 
@@ -221,7 +222,50 @@ pub fn primary_view() -> Html {
             }
 
             <div class="view-row" style={"display: ".to_owned() + &scene_display}>
-                <FileBrowser variant={FileVariant::Asset} kind={FileKind::Model} files={saved_context.models.clone()} />
+                <section>
+                    <div class="btn-row">
+                        <MdButton
+                            label="Models"
+                            icon={""}
+                            on_click={Callback::from({
+                                let browser_tab = browser_tab.clone();
+
+                                move |_| {
+                                    let browser_tab = browser_tab.clone();
+
+                                    browser_tab.set("models".to_string());
+                                }
+                            })}
+                            disabled={*loading}
+                            loading={*loading}
+                            kind={MdButtonKind::SmallShort}
+                            variant={MdButtonVariant::Green}
+                        />
+                        <MdButton
+                            label="Landscapes"
+                            icon={""}
+                            on_click={Callback::from({
+                                let browser_tab = browser_tab.clone();
+
+                                move |_| {
+                                    let browser_tab = browser_tab.clone();
+
+                                    browser_tab.set("landscapes".to_string());
+                                }
+                            })}
+                            disabled={*loading}
+                            loading={*loading}
+                            kind={MdButtonKind::SmallShort}
+                            variant={MdButtonVariant::Green}
+                        />
+                    </div>
+                    if *browser_tab == "models".to_string() {
+                        <FileBrowser variant={FileVariant::Asset} kind={FileKind::Model} files={saved_context.models.clone()} />
+                    }
+                    if *browser_tab == "landscapes".to_string() {
+                        <FileBrowser variant={FileVariant::Asset} kind={FileKind::Landscape} files={saved_context.landscapes.clone().unwrap_or(Vec::new())} />
+                    }
+                </section>
                 <section>
                     <SceneView />
                 </section>

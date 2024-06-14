@@ -1,4 +1,5 @@
 use nalgebra::{Matrix4, Point3, Vector3};
+use serde::{Deserialize, Serialize};
 use serde_wasm_bindgen::to_value;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
@@ -23,14 +24,28 @@ use gltf::buffer::{Source, View};
 use gltf::Glb;
 use gltf::Gltf;
 use std::ops::{Deref, DerefMut};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use wasm_bindgen_futures::future_to_promise;
 
+use crate::renderer::shapes::Pyramid::Pyramid;
 use crate::renderer::Grid::Grid;
+use crate::renderer::Landscape::Landscape;
 use crate::renderer::Model::{Mesh, Model};
 use crate::renderer::SimpleCamera::SimpleCamera;
-use crate::{components::FileBrowser::ReadModelParams, renderer::shapes::Pyramid::Pyramid};
+
+#[derive(Serialize)]
+pub struct ReadModelParams {
+    pub projectId: String,
+    pub modelFilename: String,
+}
+
+#[derive(Serialize)]
+pub struct GetLandscapeParams {
+    pub projectId: String,
+    pub landscapeFilename: String,
+}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -91,6 +106,7 @@ struct RendererState {
     pyramids: Vec<Pyramid>,
     grids: Vec<Grid>,
     models: Vec<Model>,
+    landscapes: Vec<Landscape>,
 
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
@@ -124,10 +140,13 @@ impl RendererState {
 
         let mut models = Vec::new();
 
+        let mut landscapes = Vec::new();
+
         Self {
             pyramids,
             grids,
             models,
+            landscapes,
 
             device,
             queue,
@@ -151,6 +170,20 @@ impl RendererState {
         .await;
 
         self.models.push(model);
+    }
+
+    fn add_landscape(&mut self, data: &LandscapeData) {
+        let landscape = Landscape::new(
+            data,
+            &self.device,
+            &self.queue,
+            &self.model_bind_group_layout,
+            &self.texture_bind_group_layout,
+            // &self.texture_render_mode_buffer,
+            &self.color_render_mode_buffer,
+        );
+
+        self.landscapes.push(landscape);
     }
 }
 
@@ -251,8 +284,6 @@ impl RendererState {
 //         }
 //     }
 // }
-
-use std::sync::atomic::{AtomicBool, Ordering};
 
 static RENDERING_PAUSED: AtomicBool = AtomicBool::new(false);
 
@@ -653,6 +684,7 @@ pub async fn start_render_loop() {
         }),
         primitive: wgpu::PrimitiveState {
             topology: wgpu::PrimitiveTopology::TriangleList,
+            // strip_index_format: Some(wgpu::IndexFormat::Uint32),
             strip_index_format: None,
             front_face: wgpu::FrontFace::Ccw,
             cull_mode: Some(wgpu::Face::Back),
@@ -839,19 +871,32 @@ fn render_frame(
         // web_sys::console::log_1(&"Model count...".into());
         // web_sys::console::log_1(&state.models.len().into());
 
-        for model in &state.models {
-            for mesh in &model.meshes {
-                mesh.transform.update_uniform_buffer(&queue);
-                render_pass.set_bind_group(0, &camera_bind_group, &[]);
-                render_pass.set_bind_group(1, &mesh.bind_group, &[]);
-                render_pass.set_bind_group(2, &mesh.texture_bind_group, &[]);
+        // for model in &state.models {
+        //     for mesh in &model.meshes {
+        //         mesh.transform.update_uniform_buffer(&queue);
+        //         render_pass.set_bind_group(0, &camera_bind_group, &[]);
+        //         render_pass.set_bind_group(1, &mesh.bind_group, &[]);
+        //         render_pass.set_bind_group(2, &mesh.texture_bind_group, &[]);
 
-                render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-                render_pass
-                    .set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        //         render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+        //         render_pass
+        //             .set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-                render_pass.draw_indexed(0..mesh.index_count as u32, 0, 0..1);
-            }
+        //         render_pass.draw_indexed(0..mesh.index_count as u32, 0, 0..1);
+        //     }
+        // }
+
+        for landscape in &state.landscapes {
+            landscape.transform.update_uniform_buffer(&queue);
+            render_pass.set_bind_group(0, &camera_bind_group, &[]);
+            render_pass.set_bind_group(1, &landscape.bind_group, &[]);
+            render_pass.set_bind_group(2, &landscape.texture_bind_group, &[]);
+
+            render_pass.set_vertex_buffer(0, landscape.vertex_buffer.slice(..));
+            render_pass
+                .set_index_buffer(landscape.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+
+            render_pass.draw_indexed(0..landscape.index_count as u32, 0, 0..1);
         }
     }
 
@@ -986,16 +1031,48 @@ pub fn handle_add_model(projectId: String, modelFilename: String) {
     });
 }
 
-// #[wasm_bindgen]
-// pub async fn handle_add_model(url: String) -> Result<JsValue, JsValue> {
-//     let mut state_guard = get_renderer_state_write_lock();
-//     state_guard.add_model(&url).await;
+#[derive(Serialize, Deserialize)]
+pub struct LandscapeData {
+    // pub width: usize,
+    // pub height: usize,
+    pub width: usize,
+    pub height: usize,
+    // pub data: Vec<u8>,
+    pub pixel_data: Vec<Vec<PixelData>>,
+}
 
-//     Ok(JsValue::null())
-// }
+#[derive(Serialize, Deserialize)]
+pub struct PixelData {
+    pub height_value: f32,
+    pub position: [f32; 3],
+    pub tex_coords: [f32; 2],
+}
 
-// #[wasm_bindgen]
-// pub fn handle_add_model_promise(url: String) -> js_sys::Promise {
-//     let fut = handle_add_model(url);
-//     future_to_promise(fut)
-// }
+#[wasm_bindgen]
+pub fn handle_add_landscape(projectId: String, landscapeFilename: String) {
+    pause_rendering();
+
+    let state = get_renderer_state();
+    let mut state_guard = state.lock().unwrap();
+
+    // TODO: this spawn and async may be unncessary
+    spawn_local(async move {
+        // let mut state_guard = get_renderer_state_write_lock();
+
+        let params = to_value(&GetLandscapeParams {
+            projectId,
+            landscapeFilename,
+        })
+        .unwrap();
+        let js_data = crate::app::invoke("get_landscape_pixels", params).await;
+        let data: LandscapeData = js_data
+            .into_serde()
+            .expect("Failed to transform byte string to value");
+
+        state_guard.add_landscape(&data);
+
+        drop(state_guard);
+
+        resume_rendering();
+    });
+}

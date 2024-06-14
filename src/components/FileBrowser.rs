@@ -1,12 +1,16 @@
 use regex::bytes::Regex;
 use serde::Serialize;
 use serde_wasm_bindgen::to_value;
-use std::path::PathBuf;
+use std::{ops::Deref, path::PathBuf};
 use uuid::Uuid;
+use wasm_bindgen::closure::Closure;
+use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::HtmlTextAreaElement;
+use web_sys::{Event, FileReader, HtmlInputElement};
 use yew::prelude::*;
 
+use crate::renderer::core::handle_add_landscape;
 use crate::{
     components::MdButton::{MdButton, MdButtonKind, MdButtonVariant},
     contexts::{local::LocalContextType, saved::File},
@@ -25,6 +29,7 @@ pub enum FileVariant {
 pub enum FileKind {
     Model,
     Image,
+    Landscape,
 }
 
 #[derive(Clone, PartialEq, Properties)]
@@ -49,9 +54,10 @@ struct SaveModelParams {
 }
 
 #[derive(Serialize)]
-pub struct ReadModelParams {
-    pub projectId: String,
-    pub modelFilename: String,
+struct SaveLandscapeParams {
+    projectId: String,
+    landscapeBase64: String,
+    landscapeFilename: String,
 }
 
 pub fn getFilename(concept_prompt_str: String) -> String {
@@ -79,6 +85,10 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
     let loading = use_state(|| false);
 
     let concept_prompt_value = use_state(String::default);
+
+    let landscape_filename = use_state(|| "".to_string());
+    let landscape_base64 = use_state(|| "".to_string());
+    let loading = use_state(|| false);
 
     let handle_concept_prompt_change = {
         let concept_prompt_value = concept_prompt_value.clone();
@@ -138,11 +148,7 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
                                     }).unwrap();
                                     let result = crate::app::invoke("save_concept", params).await;
 
-                                    // local_context.dispatch(LocalAction::SetCurrentProject(projectId.clone()));
-
                                     loading.set(false);
-
-                                    // local_context.dispatch(LocalAction::SetRoute("/concepts".to_string()));
                                 });
                             }
                         })}
@@ -152,6 +158,129 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
                         variant={MdButtonVariant::Green}
                     />
                 </div>
+            }
+            if props.kind == FileKind::Landscape {
+                <>
+                    <h5>{"Select Landscape Heightmap (.TIF)"}</h5>
+                    <input
+                        type="file"
+                        onchange={{
+                            let landscape_filename = landscape_filename.clone();
+                            let landscape_base64 = landscape_base64.clone();
+                            Callback::from(move |e: Event| {
+                                let input: HtmlInputElement = e.target_unchecked_into();
+                                if let Some(files) = input.files() {
+                                    if let Some(file) = files.get(0) {
+                                        let file_name = file.name();
+                                        let landscape_filename = landscape_filename.clone();
+                                        let landscape_base64 = landscape_base64.clone();
+                                        let reader = FileReader::new().unwrap();
+
+                                        landscape_filename.set(file_name);
+
+                                        let reader_clone = reader.clone();
+                                        let reader_onload = Closure::wrap(Box::new(move |e: Event| {
+                                            let result = reader_clone.result().unwrap();
+                                            let result_str = result.as_string().unwrap();
+                                            let base64_content = result_str.split(',').nth(1).unwrap().to_string();
+                                            landscape_base64.set(base64_content);
+                                        }) as Box<dyn FnMut(_)>);
+
+                                        reader.set_onload(Some(reader_onload.as_ref().unchecked_ref()));
+                                        reader.read_as_data_url(&file).unwrap();
+                                        reader_onload.forget();
+                                    }
+                                }
+                            })
+                        }}
+                    />
+
+                    <MdButton
+                        label="Save Landscape"
+                        icon={""}
+                        on_click={Callback::from({
+                            let local_context = local_context.clone();
+                            let loading = loading.clone();
+                            let landscape_filename = landscape_filename.clone();
+                            let landscape_base64 = landscape_base64.clone();
+
+                            move |_| {
+                                let local_context = local_context.clone();
+                                let loading = loading.clone();
+                                let landscape_filename = landscape_filename.clone();
+                                let landscape_base64 = landscape_base64.clone();
+
+                                loading.set(true);
+
+                                web_sys::console::log_1(&"Saving landscape...".into());
+
+                                spawn_local(async move {
+                                    // determine filename
+                                    let landscapeFilename = (*landscape_filename).clone();
+                                    let landscapeBase64 = (*landscape_base64).clone();
+
+                                    web_sys::console::log_1(&landscapeFilename.clone().into());
+
+                                    // save as image inside folder within sync folder: /CommonOSFiles/midpoint/projects/project_id/concepts/
+                                    let projectId = local_context.current_project_id.clone().expect("No project selected?");
+                                    let params = to_value(&SaveLandscapeParams {
+                                        projectId,
+                                        landscapeBase64,
+                                        landscapeFilename
+                                    }).unwrap();
+                                    let result = crate::app::invoke("save_landscape", params).await;
+
+                                    loading.set(false);
+                                });
+                            }
+                        })}
+                        disabled={*loading}
+                        loading={*loading}
+                        kind={MdButtonKind::SmallShort}
+                        variant={MdButtonVariant::Green}
+                    />
+
+                    <p>{"Soon you will be able to select masks for rocks, soil, etc (.PNG)"}</p>
+
+                    <div class="file-grid">
+                        {
+                            props.files.clone().into_iter().map(|file| {
+                                let cloudfrontUrl = file.cloudfrontUrl.clone();
+
+                                html!{
+                                    <div class="file-item" key={file.id}>
+                                        <span>{file.fileName.clone()}</span>
+                                        <MdButton
+                                            label="Add to Scene"
+                                            icon={""}
+                                            on_click={Callback::from({
+                                                let local_context = local_context.clone();
+                                                let loading = loading.clone();
+                                                let fileName = file.fileName.clone();
+
+                                                move |_| {
+                                                    let local_context = local_context.clone();
+                                                    let loading = loading.clone();
+
+                                                    web_sys::console::log_1(&"Adding landscape to scene...".into());
+
+                                                    let projectId = local_context.current_project_id.clone().expect("No project selected?");
+                                                    let landscapeFilename = fileName.clone();
+
+                                                    handle_add_landscape(projectId, landscapeFilename);
+                                                }
+                                            })}
+                                            disabled={*loading}
+                                            loading={*loading}
+                                            kind={MdButtonKind::SmallShort}
+                                            variant={MdButtonVariant::Green}
+                                        />
+                                    </div>
+                                }
+                            }).collect::<Html>()
+                        }
+                    </div>
+                </>
             }
             if props.kind == FileKind::Image {
                 <div class="file-grid">
