@@ -1,6 +1,6 @@
 [package]
 name = "midpoint-ui"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Midpoint is an AI and open-world first game engine. Editor is WASM, but compile target is native wgpu, not WASM."
 license = "MIT"

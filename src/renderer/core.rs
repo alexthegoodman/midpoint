@@ -35,6 +35,13 @@ use crate::renderer::Landscape::Landscape;
 use crate::renderer::Model::{Mesh, Model};
 use crate::renderer::SimpleCamera::SimpleCamera;
 
+// TODO: test this separate invoke
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "tauri"])]
+    pub async fn invoke(cmd: &str, args: JsValue) -> JsValue;
+}
+
 #[derive(Serialize)]
 pub struct ReadModelParams {
     pub projectId: String,
@@ -1018,7 +1025,8 @@ pub fn handle_add_model(projectId: String, modelFilename: String) {
             modelFilename,
         })
         .unwrap();
-        let bytes = crate::app::invoke("read_model", params).await;
+        // let bytes = crate::app::invoke("read_model", params).await;
+        let bytes = invoke("read_model", params).await;
         let bytes = bytes
             .into_serde()
             .expect("Failed to transform byte string to value");
@@ -1064,7 +1072,8 @@ pub fn handle_add_landscape(projectId: String, landscapeFilename: String) {
             landscapeFilename,
         })
         .unwrap();
-        let js_data = crate::app::invoke("get_landscape_pixels", params).await;
+        // let js_data = crate::app::invoke("get_landscape_pixels", params).await;
+        let js_data = invoke("get_landscape_pixels", params).await;
         let data: LandscapeData = js_data
             .into_serde()
             .expect("Failed to transform byte string to value");
