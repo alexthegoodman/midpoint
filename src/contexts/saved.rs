@@ -19,6 +19,8 @@ pub struct SavedState {
     pub concepts: Vec<File>,
     pub models: Vec<File>,
     pub landscapes: Option<Vec<File>>,
+    pub textures: Option<Vec<File>>,
+    pub levels: Option<Vec<File>>,
 }
 
 pub enum SavedAction {
@@ -33,6 +35,8 @@ impl Default for SavedState {
             concepts: Vec::new(),
             models: Vec::new(),
             landscapes: Some(Vec::new()),
+            textures: Some(Vec::new()),
+            levels: Some(Vec::new()),
         }
     }
 }

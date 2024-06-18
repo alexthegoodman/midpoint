@@ -143,41 +143,6 @@ fn get_landscape_pixels(
     let landscapes_dir = sync_dir.join(format!("midpoint/projects/{}/landscapes", projectId));
     let landscape_path = landscapes_dir.join(landscapeFilename);
 
-    // let img = ImageReader::open(landscape_path)
-    //     .expect("Couldn't open heightmap")
-    //     .decode()
-    //     .expect("Couldn't decode heightmap");
-    // // let heightmap = img.to_luma16();
-    // let heightmap = img.to_luma8();
-
-    // let width = heightmap.width() as usize;
-    // let height = heightmap.height() as usize;
-
-    // let mut pixel_data = Vec::new();
-
-    // let scale = 1.0;
-
-    // for y in 0..height {
-    //     let mut row = Vec::new();
-    //     for x in 0..width {
-    //         let pixel = heightmap.get_pixel(x as u32, y as u32);
-    //         let height_value = pixel[0] as f32 / 255.0 * scale;
-    //         let position = [
-    //             x as f32 / width as f32 * 2.0 - 1.0,
-    //             height_value,
-    //             y as f32 / height as f32 * 2.0 - 1.0,
-    //         ];
-    //         let tex_coords = [x as f32 / width as f32, y as f32 / height as f32];
-
-    //         row.push(PixelData {
-    //             height_value,
-    //             position,
-    //             tex_coords,
-    //         });
-    //     }
-    //     pixel_data.push(row);
-    // }
-
     let (width, height, pixel_data) = read_tiff_heightmap(
         landscape_path
             .to_str()
@@ -229,6 +194,47 @@ fn save_concept(
     fs::write(concept_path, image_data)
         .map_err(|e| format!("Couldn't save concept file: {}", e))
         .expect("Couldn't save concept file");
+
+    "success".to_string()
+}
+
+#[tauri::command]
+fn save_texture(
+    state: tauri::State<'_, AppState>,
+    projectId: String,
+    textureBase64: String,
+    textureFilename: String,
+) -> String {
+    let handle = &state.handle;
+    let config = handle.config();
+    let package_info = handle.package_info();
+    let env = handle.env();
+
+    let sync_dir = PathBuf::from("C:/Users/alext/CommonOSFiles");
+    let textures_dir = sync_dir.join(format!("midpoint/projects/{}/textures", projectId));
+
+    // Check if the concepts directory exists, create if it doesn't
+    if !Path::new(&textures_dir).exists() {
+        fs::create_dir_all(&textures_dir).expect("Couldn't create textures directory");
+    }
+
+    let texture_path = textures_dir.join(textureFilename);
+
+    // Strip the "data:image/png;base64," prefix
+    let base64_data = textureBase64
+        .strip_prefix("data:image/png;base64,")
+        .ok_or("Invalid base64 image string")
+        .expect("Couldn't get base64 string");
+
+    // Decode the base64 string
+    let image_data = decode(base64_data)
+        .map_err(|e| format!("Couldn't decode base64 string: {}", e))
+        .expect("Couldn't decode base64 string");
+
+    // Save the decoded image data to a file
+    fs::write(texture_path, image_data)
+        .map_err(|e| format!("Couldn't save texture file: {}", e))
+        .expect("Couldn't save texture file");
 
     "success".to_string()
 }
@@ -360,6 +366,7 @@ fn main() {
             read_model,
             get_landscape_pixels,
             save_landscape,
+            save_texture,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

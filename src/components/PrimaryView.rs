@@ -258,12 +258,32 @@ pub fn primary_view() -> Html {
                             kind={MdButtonKind::SmallShort}
                             variant={MdButtonVariant::Green}
                         />
+                        <MdButton
+                            label="Textures"
+                            icon={""}
+                            on_click={Callback::from({
+                                let browser_tab = browser_tab.clone();
+
+                                move |_| {
+                                    let browser_tab = browser_tab.clone();
+
+                                    browser_tab.set("textures".to_string());
+                                }
+                            })}
+                            disabled={*loading}
+                            loading={*loading}
+                            kind={MdButtonKind::SmallShort}
+                            variant={MdButtonVariant::Green}
+                        />
                     </div>
                     if *browser_tab == "models".to_string() {
                         <FileBrowser variant={FileVariant::Asset} kind={FileKind::Model} files={saved_context.models.clone()} />
                     }
                     if *browser_tab == "landscapes".to_string() {
                         <FileBrowser variant={FileVariant::Asset} kind={FileKind::Landscape} files={saved_context.landscapes.clone().unwrap_or(Vec::new())} />
+                    }
+                    if *browser_tab == "textures".to_string() {
+                        <FileBrowser variant={FileVariant::Asset} kind={FileKind::Texture} files={saved_context.textures.clone().unwrap_or(Vec::new())} />
                     }
                 </section>
                 <section>

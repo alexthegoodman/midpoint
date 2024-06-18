@@ -10,6 +10,7 @@ use web_sys::HtmlTextAreaElement;
 use web_sys::{Event, FileReader, HtmlInputElement};
 use yew::prelude::*;
 
+use crate::gql::generateTexture::generate_texture;
 use crate::renderer::core::handle_add_landscape;
 use crate::{
     components::MdButton::{MdButton, MdButtonKind, MdButtonVariant},
@@ -30,6 +31,7 @@ pub enum FileKind {
     Model,
     Image,
     Landscape,
+    Texture,
 }
 
 #[derive(Clone, PartialEq, Properties)]
@@ -44,6 +46,13 @@ struct SaveConceptParams {
     projectId: String,
     conceptBase64: String,
     conceptFilename: String,
+}
+
+#[derive(Serialize)]
+struct SaveTextureParams {
+    projectId: String,
+    textureBase64: String,
+    textureFilename: String,
 }
 
 #[derive(Serialize)]
@@ -84,20 +93,20 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
 
     let loading = use_state(|| false);
 
-    let concept_prompt_value = use_state(String::default);
+    let prompt_value = use_state(String::default);
 
     let landscape_filename = use_state(|| "".to_string());
     let landscape_base64 = use_state(|| "".to_string());
     let loading = use_state(|| false);
 
-    let handle_concept_prompt_change = {
-        let concept_prompt_value = concept_prompt_value.clone();
+    let handle_prompt_change = {
+        let prompt_value = prompt_value.clone();
 
         Callback::from(move |e: Event| {
             let input = e.target_dyn_into::<HtmlTextAreaElement>();
 
             if let Some(input) = input {
-                concept_prompt_value.set(input.value());
+                prompt_value.set(input.value());
             }
         })
     };
@@ -107,16 +116,17 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
             if props.variant == FileVariant::Concept {
                 <div class="file-prompt">
                     <label>{"Describe your concept"}</label>
-                    <textarea onchange={handle_concept_prompt_change} rows="3">{(*concept_prompt_value).clone()}</textarea>
+                    <textarea onchange={handle_prompt_change.clone()} rows="3">{(*prompt_value).clone()}</textarea>
                     <MdButton
                         label="Generate"
                         icon={""}
                         on_click={Callback::from({
+                            let prompt_value = prompt_value.clone();
                             let local_context = local_context.clone();
                             let loading = loading.clone();
 
                             move |_| {
-                                let concept_prompt_value = concept_prompt_value.clone();
+                                let prompt_value = prompt_value.clone();
                                 let local_context = local_context.clone();
                                 let loading = loading.clone();
 
@@ -126,14 +136,14 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
 
                                 spawn_local(async move {
                                     // generate concept via GraphQL or Socket
-                                    let concept_data = generate_concept(local_context.token.clone().expect("Failed token fetch"), (*concept_prompt_value).clone()).await;
+                                    let concept_data = generate_concept(local_context.token.clone().expect("Failed token fetch"), (*prompt_value).clone()).await;
 
                                     web_sys::console::log_1(&"Concept generated, saving now...".into());
 
                                     let conceptBase64 = concept_data.expect("Couldn't unwrap concept data").generateConcept;
 
                                     // determine filename
-                                    let concept_prompt_str: String = (*concept_prompt_value).clone();
+                                    let concept_prompt_str: String = (*prompt_value).clone();
                                     let conceptFilename = getFilename(concept_prompt_str);
                                     let conceptFilename = conceptFilename + ".png";
 
@@ -383,6 +393,77 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
                                         kind={MdButtonKind::SmallShort}
                                         variant={MdButtonVariant::Green}
                                     />
+                                </div>
+                            }
+                        }).collect::<Html>()
+                    }
+                </div>
+            }
+            if props.kind == FileKind::Texture {
+                <>
+                    <div class="file-prompt">
+                        <label>{"Describe your texture"}</label>
+                        <textarea onchange={handle_prompt_change.clone()} rows="3">{(*prompt_value).clone()}</textarea>
+                        <MdButton
+                            label="Generate"
+                            icon={""}
+                            on_click={Callback::from({
+                                let prompt_value = prompt_value.clone();
+                                let local_context = local_context.clone();
+                                let loading = loading.clone();
+
+                                move |_| {
+                                    let prompt_value = prompt_value.clone();
+                                    let local_context = local_context.clone();
+                                    let loading = loading.clone();
+
+                                    loading.set(true);
+
+                                    web_sys::console::log_1(&"Generating texture...".into());
+
+                                    spawn_local(async move {
+                                        // generate concept via GraphQL or Socket
+                                        let texture_data = generate_texture(local_context.token.clone().expect("Failed token fetch"), (*prompt_value).clone()).await;
+
+                                        web_sys::console::log_1(&"Texture generated, saving now...".into());
+
+                                        let textureBase64 = texture_data.expect("Couldn't unwrap texture data").generateTexture;
+
+                                        // determine filename
+                                        let texture_prompt_str: String = (*prompt_value).clone();
+                                        let textureFilename = getFilename(texture_prompt_str);
+                                        let textureFilename = textureFilename + ".png";
+
+                                        web_sys::console::log_1(&textureFilename.clone().into());
+
+                                        // save as image inside folder within sync folder: /CommonOSFiles/midpoint/projects/project_id/concepts/
+                                        let projectId = local_context.current_project_id.clone().expect("No project selected?");
+                                        let params = to_value(&SaveTextureParams {
+                                            projectId,
+                                            textureBase64,
+                                            textureFilename
+                                        }).unwrap();
+                                        let result = crate::app::invoke("save_texture", params).await;
+
+                                        loading.set(false);
+                                    });
+                                }
+                            })}
+                            disabled={*loading}
+                            loading={*loading}
+                            kind={MdButtonKind::SmallShort}
+                            variant={MdButtonVariant::Green}
+                        />
+                    </div>
+                </>
+                <div class="file-grid">
+                    {
+                        props.files.clone().into_iter().map(|file| {
+
+                            html!{
+                                <div class="file-item" key={file.clone().id}>
+                                    <img src={file.clone().cloudfrontUrl} />
+                                    <span>{file.clone().fileName}</span>
                                 </div>
                             }
                         }).collect::<Html>()
