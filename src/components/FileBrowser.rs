@@ -10,10 +10,12 @@ use web_sys::HtmlTextAreaElement;
 use web_sys::{Event, FileReader, HtmlInputElement};
 use yew::prelude::*;
 
+use crate::contexts::saved::LandscapeData;
 use crate::gql::generateTexture::generate_texture;
 use crate::renderer::core::handle_add_landscape;
 use crate::{
     components::MdButton::{MdButton, MdButtonKind, MdButtonVariant},
+    components::MdFileInput::MdFileInput,
     contexts::{local::LocalContextType, saved::File},
     gql::generateConcept::generate_concept,
     gql::generateModel::generate_model,
@@ -38,7 +40,8 @@ pub enum FileKind {
 pub struct FileBrowserProps {
     pub variant: FileVariant,
     pub kind: FileKind,
-    pub files: Vec<File>,
+    pub files: Option<Vec<File>>,
+    pub landscapes: Option<Vec<LandscapeData>>,
 }
 
 #[derive(Serialize)]
@@ -67,6 +70,10 @@ struct SaveLandscapeParams {
     projectId: String,
     landscapeBase64: String,
     landscapeFilename: String,
+    rockmapFilename: String,
+    rockmapBase64: String,
+    soilFilename: String,
+    soilBase64: String,
 }
 
 pub fn getFilename(concept_prompt_str: String) -> String {
@@ -97,6 +104,11 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
 
     let landscape_filename = use_state(|| "".to_string());
     let landscape_base64 = use_state(|| "".to_string());
+    let rockmap_filename = use_state(|| "".to_string());
+    let rockmap_base64 = use_state(|| "".to_string());
+    let soil_filename = use_state(|| "".to_string());
+    let soil_base64 = use_state(|| "".to_string());
+
     let loading = use_state(|| false);
 
     let handle_prompt_change = {
@@ -172,38 +184,26 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
             if props.kind == FileKind::Landscape {
                 <>
                     <h5>{"Select Landscape Heightmap (.TIF)"}</h5>
-                    <input
-                        type="file"
-                        onchange={{
-                            let landscape_filename = landscape_filename.clone();
-                            let landscape_base64 = landscape_base64.clone();
-                            Callback::from(move |e: Event| {
-                                let input: HtmlInputElement = e.target_unchecked_into();
-                                if let Some(files) = input.files() {
-                                    if let Some(file) = files.get(0) {
-                                        let file_name = file.name();
-                                        let landscape_filename = landscape_filename.clone();
-                                        let landscape_base64 = landscape_base64.clone();
-                                        let reader = FileReader::new().unwrap();
-
-                                        landscape_filename.set(file_name);
-
-                                        let reader_clone = reader.clone();
-                                        let reader_onload = Closure::wrap(Box::new(move |e: Event| {
-                                            let result = reader_clone.result().unwrap();
-                                            let result_str = result.as_string().unwrap();
-                                            let base64_content = result_str.split(',').nth(1).unwrap().to_string();
-                                            landscape_base64.set(base64_content);
-                                        }) as Box<dyn FnMut(_)>);
-
-                                        reader.set_onload(Some(reader_onload.as_ref().unchecked_ref()));
-                                        reader.read_as_data_url(&file).unwrap();
-                                        reader_onload.forget();
-                                    }
-                                }
-                            })
-                        }}
+                    <MdFileInput
+                        filename={landscape_filename.clone()}
+                        base64={landscape_base64.clone()}
                     />
+
+                    <p>{"Now select masks for rocks, soil, etc (.PNG)"}</p>
+                    <div>
+                        <label>{"RockMap"}</label>
+                        <MdFileInput
+                            filename={rockmap_filename.clone()}
+                            base64={rockmap_base64.clone()}
+                        />
+                    </div>
+                    <div>
+                        <label>{"Soil"}</label>
+                        <MdFileInput
+                            filename={soil_filename.clone()}
+                            base64={soil_base64.clone()}
+                        />
+                    </div>
 
                     <MdButton
                         label="Save Landscape"
@@ -211,14 +211,24 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
                         on_click={Callback::from({
                             let local_context = local_context.clone();
                             let loading = loading.clone();
+
                             let landscape_filename = landscape_filename.clone();
                             let landscape_base64 = landscape_base64.clone();
+                            let rockmap_filename = rockmap_filename.clone();
+                            let rockmap_base64 = rockmap_base64.clone();
+                            let soil_filename = soil_filename.clone();
+                            let soil_base64 = soil_base64.clone();
 
                             move |_| {
                                 let local_context = local_context.clone();
                                 let loading = loading.clone();
+
                                 let landscape_filename = landscape_filename.clone();
                                 let landscape_base64 = landscape_base64.clone();
+                                let rockmap_filename = rockmap_filename.clone();
+                                let rockmap_base64 = rockmap_base64.clone();
+                                let soil_filename = soil_filename.clone();
+                                let soil_base64 = soil_base64.clone();
 
                                 loading.set(true);
 
@@ -228,6 +238,10 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
                                     // determine filename
                                     let landscapeFilename = (*landscape_filename).clone();
                                     let landscapeBase64 = (*landscape_base64).clone();
+                                    let rockmapFilename = (*rockmap_filename).clone();
+                                    let rockmapBase64 = (*rockmap_base64).clone();
+                                    let soilFilename = (*soil_filename).clone();
+                                    let soilBase64 = (*soil_base64).clone();
 
                                     web_sys::console::log_1(&landscapeFilename.clone().into());
 
@@ -236,7 +250,11 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
                                     let params = to_value(&SaveLandscapeParams {
                                         projectId,
                                         landscapeBase64,
-                                        landscapeFilename
+                                        landscapeFilename,
+                                        rockmapFilename,
+                                        rockmapBase64,
+                                        soilFilename,
+                                        soilBase64,
                                     }).unwrap();
                                     let result = crate::app::invoke("save_landscape", params).await;
 
@@ -250,23 +268,33 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
                         variant={MdButtonVariant::Green}
                     />
 
-                    <p>{"Soon you will be able to select masks for rocks, soil, etc (.PNG)"}</p>
+
 
                     <div class="file-grid">
                         {
-                            props.files.clone().into_iter().map(|file| {
-                                let cloudfrontUrl = file.cloudfrontUrl.clone();
+                            props.landscapes.clone().unwrap_or_default().into_iter().map(|landscape| {
+                                let landscape_id = landscape.id.clone();
+                                let hasRockmap = landscape.rockmap.is_some();
+                                let hasSoil = landscape.soil.is_some();
+                                let heightmapCloudfrontUrl = landscape.heightmap.clone().unwrap_or_default().cloudfrontUrl.clone();
+                                let heightmapFilename = landscape.heightmap.clone().unwrap_or_default().fileName.clone();
 
                                 html!{
-                                    <div class="file-item" key={file.id}>
-                                        <span>{file.fileName.clone()}</span>
+                                    <div class="file-item" key={landscape_id}>
+                                        <span>{heightmapFilename.clone()}</span>
+                                        if hasRockmap {
+                                            <span>{"Has RockMap"}</span>
+                                        }
+                                        if hasSoil {
+                                            <span>{"Has Soil"}</span>
+                                        }
                                         <MdButton
                                             label="Add to Scene"
                                             icon={""}
                                             on_click={Callback::from({
                                                 let local_context = local_context.clone();
                                                 let loading = loading.clone();
-                                                let fileName = file.fileName.clone();
+                                                let fileName = heightmapFilename.clone();
 
                                                 move |_| {
                                                     let local_context = local_context.clone();
@@ -295,7 +323,7 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
             if props.kind == FileKind::Image {
                 <div class="file-grid">
                     {
-                        props.files.clone().into_iter().map(|file| {
+                        props.files.clone().unwrap_or_default().into_iter().map(|file| {
 
                             html!{
                                 <div class="file-item" key={file.clone().id}>
@@ -362,7 +390,7 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
             if props.kind == FileKind::Model {
                 <div class="file-grid">
                     {
-                        props.files.clone().into_iter().map(|file| {
+                        props.files.clone().unwrap_or_default().into_iter().map(|file| {
                             let cloudfrontUrl = file.cloudfrontUrl.clone();
 
                             html!{
@@ -458,7 +486,7 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
                 </>
                 <div class="file-grid">
                     {
-                        props.files.clone().into_iter().map(|file| {
+                        props.files.clone().unwrap_or_default().into_iter().map(|file| {
 
                             html!{
                                 <div class="file-item" key={file.clone().id}>

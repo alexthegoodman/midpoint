@@ -14,6 +14,7 @@ use std::sync::Arc;
 use tauri::api::path::{app_data_dir, resolve_path, BaseDirectory};
 use tauri::{App, AppHandle, Manager};
 use tiff::decoder::{Decoder, DecodingResult};
+use uuid::Uuid;
 
 struct AppState {
     handle: AppHandle,
@@ -312,38 +313,71 @@ fn save_landscape(
     projectId: String,
     landscapeBase64: String,
     landscapeFilename: String,
+    rockmapFilename: String,
+    rockmapBase64: String,
+    soilFilename: String,
+    soilBase64: String,
 ) -> String {
     let handle = &state.handle;
     let config = handle.config();
     let package_info = handle.package_info();
     let env = handle.env();
 
+    let landscape_id = Uuid::new_v4();
+
     let sync_dir = PathBuf::from("C:/Users/alext/CommonOSFiles");
-    let landscapes_dir = sync_dir.join(format!("midpoint/projects/{}/landscapes", projectId));
+    let heightmaps_dir = sync_dir.join(format!(
+        "midpoint/projects/{}/landscapes/{}/heightmaps",
+        projectId, landscape_id,
+    ));
+    let rockmaps_dir = sync_dir.join(format!(
+        "midpoint/projects/{}/landscapes/{}/rockmaps",
+        projectId, landscape_id
+    ));
+    let soils_dir = sync_dir.join(format!(
+        "midpoint/projects/{}/landscapes/{}/soils",
+        projectId, landscape_id
+    ));
 
     // Check if the concepts directory exists, create if it doesn't
-    if !Path::new(&landscapes_dir).exists() {
-        fs::create_dir_all(&landscapes_dir).expect("Couldn't create landscapes directory");
+    if !Path::new(&heightmaps_dir).exists() {
+        fs::create_dir_all(&heightmaps_dir).expect("Couldn't create heightmaps directory");
+    }
+    if !Path::new(&rockmaps_dir).exists() {
+        fs::create_dir_all(&rockmaps_dir).expect("Couldn't create rockmaps directory");
+    }
+    if !Path::new(&soils_dir).exists() {
+        fs::create_dir_all(&soils_dir).expect("Couldn't create soils directory");
     }
 
-    let landscape_path = landscapes_dir.join(landscapeFilename);
+    let heightmap_path = heightmaps_dir.join(landscapeFilename);
+    let rockmap_path = rockmaps_dir.join(rockmapFilename);
+    let soil_path = soils_dir.join(soilFilename);
 
-    // Strip the "data:image/png;base64," prefix
-    // let base64_data = landscapeBase64
-    //     .strip_prefix("data:image/tiff;base64,")
-    //     .ok_or("Invalid base64 landscape string")
-    //     .expect("Couldn't get base64 string for landscape");
+    // prefix is pre-stripped on frontend
     let base64_data = landscapeBase64;
+    let heightmap_data = decode(base64_data)
+        .map_err(|e| format!("Couldn't decode base64 string for heightmap: {}", e))
+        .expect("Couldn't decode base64 string for heightmap");
+    fs::write(heightmap_path, heightmap_data)
+        .map_err(|e| format!("Couldn't save heightmap file: {}", e))
+        .expect("Couldn't save heightmap file");
 
-    // Decode the base64 string
-    let landscape_data = decode(base64_data)
-        .map_err(|e| format!("Couldn't decode base64 string for landscape: {}", e))
-        .expect("Couldn't decode base64 string for landscape");
+    let base64_data = rockmapBase64;
+    let rockmap_data = decode(base64_data)
+        .map_err(|e| format!("Couldn't decode base64 string for rockmap: {}", e))
+        .expect("Couldn't decode base64 string for rockmap");
+    fs::write(rockmap_path, rockmap_data)
+        .map_err(|e| format!("Couldn't save rockmap file: {}", e))
+        .expect("Couldn't save rockmap file");
 
-    // Save the decoded image data to a file
-    fs::write(landscape_path, landscape_data)
-        .map_err(|e| format!("Couldn't save landscape file: {}", e))
-        .expect("Couldn't save landscape file");
+    let base64_data = soilBase64;
+    let soil_data = decode(base64_data)
+        .map_err(|e| format!("Couldn't decode base64 string for soil: {}", e))
+        .expect("Couldn't decode base64 string for soil");
+    fs::write(soil_path, soil_data)
+        .map_err(|e| format!("Couldn't save soil file: {}", e))
+        .expect("Couldn't save soil file");
 
     "success".to_string()
 }

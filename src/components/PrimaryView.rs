@@ -214,7 +214,7 @@ pub fn primary_view() -> Html {
                 </>
             } else if local_context.route == "/concepts".to_string() {
                 <div class="view-row">
-                    <FileBrowser variant={FileVariant::Concept} kind={FileKind::Image} files={saved_context.concepts.clone()} />
+                    <FileBrowser variant={FileVariant::Concept} kind={FileKind::Image} files={saved_context.concepts.clone()} landscapes={None} />
                     <section>
                         <FileViewer />
                     </section>
@@ -277,13 +277,28 @@ pub fn primary_view() -> Html {
                         />
                     </div>
                     if *browser_tab == "models".to_string() {
-                        <FileBrowser variant={FileVariant::Asset} kind={FileKind::Model} files={saved_context.models.clone()} />
+                        <FileBrowser
+                            variant={FileVariant::Asset}
+                            kind={FileKind::Model}
+                            files={saved_context.models.clone()}
+                            landscapes={None}
+                        />
                     }
                     if *browser_tab == "landscapes".to_string() {
-                        <FileBrowser variant={FileVariant::Asset} kind={FileKind::Landscape} files={saved_context.landscapes.clone().unwrap_or(Vec::new())} />
+                        <FileBrowser
+                            variant={FileVariant::Asset}
+                            kind={FileKind::Landscape}
+                            landscapes={saved_context.landscapes.clone().unwrap_or(Vec::new())}
+                            files={None}
+                        />
                     }
                     if *browser_tab == "textures".to_string() {
-                        <FileBrowser variant={FileVariant::Asset} kind={FileKind::Texture} files={saved_context.textures.clone().unwrap_or(Vec::new())} />
+                        <FileBrowser
+                            variant={FileVariant::Asset}
+                            kind={FileKind::Texture}
+                            files={saved_context.textures.clone().unwrap_or(Vec::new())}
+                            landscapes={None}
+                        />
                     }
                 </section>
                 <section>

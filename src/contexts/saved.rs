@@ -6,7 +6,7 @@ use yew::prelude::*;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct File {
     pub id: String,
     pub fileName: String,
@@ -14,11 +14,19 @@ pub struct File {
     pub normalFilePath: String,
 }
 
+#[derive(Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct LandscapeData {
+    pub id: String,
+    pub heightmap: Option<File>,
+    pub rockmap: Option<File>,
+    pub soil: Option<File>,
+}
+
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SavedState {
     pub concepts: Vec<File>,
     pub models: Vec<File>,
-    pub landscapes: Option<Vec<File>>,
+    pub landscapes: Option<Vec<LandscapeData>>,
     pub textures: Option<Vec<File>>,
     pub levels: Option<Vec<File>>,
 }
@@ -34,7 +42,7 @@ impl Default for SavedState {
         Self {
             concepts: Vec::new(),
             models: Vec::new(),
-            landscapes: Some(Vec::new()),
+            landscapes: None,
             textures: Some(Vec::new()),
             levels: Some(Vec::new()),
         }
