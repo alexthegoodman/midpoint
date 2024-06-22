@@ -1,3 +1,4 @@
+pub mod ComponentView;
 pub mod FileBrowser;
 pub mod FileViewer;
 pub mod MdButton;

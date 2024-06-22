@@ -10,7 +10,11 @@ use web_sys::HtmlTextAreaElement;
 use web_sys::{Event, FileReader, HtmlInputElement};
 use yew::prelude::*;
 
-use crate::contexts::saved::LandscapeData;
+use crate::contexts::local::LocalAction;
+use crate::contexts::saved::{
+    ComponentData, ComponentKind, GenericProperties, LandscapeData, LandscapeProperties,
+    SavedAction, SavedContextType,
+};
 use crate::gql::generateTexture::generate_texture;
 use crate::renderer::core::handle_add_landscape;
 use crate::{
@@ -97,6 +101,7 @@ fn change_extension_to_glb(filename: &str) -> String {
 #[function_component]
 pub fn FileBrowser(props: &FileBrowserProps) -> Html {
     let local_context = use_context::<LocalContextType>().expect("No LocalContext found");
+    let saved_context = use_context::<SavedContextType>().expect("No SavedContext found");
 
     let loading = use_state(|| false);
 
@@ -279,8 +284,12 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
                                 let heightmapCloudfrontUrl = landscape.heightmap.clone().unwrap_or_default().cloudfrontUrl.clone();
                                 let heightmapFilename = landscape.heightmap.clone().unwrap_or_default().fileName.clone();
 
+                                // let heightmapId = landscape.heightmap.clone().unwrap_or_default().id.clone();
+                                // let rockmapId = landscape.rockmap.clone().unwrap_or_default().id.clone();
+                                // let soilId = landscape.soil.clone().unwrap_or_default().id.clone();
+
                                 html!{
-                                    <div class="file-item" key={landscape_id}>
+                                    <div class="file-item" key={landscape_id.clone()}>
                                         <span>{heightmapFilename.clone()}</span>
                                         if hasRockmap {
                                             <span>{"Has RockMap"}</span>
@@ -293,11 +302,13 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
                                             icon={""}
                                             on_click={Callback::from({
                                                 let local_context = local_context.clone();
+                                                let saved_context = saved_context.clone();
                                                 let loading = loading.clone();
                                                 let fileName = heightmapFilename.clone();
 
                                                 move |_| {
                                                     let local_context = local_context.clone();
+                                                    let saved_context = saved_context.clone();
                                                     let loading = loading.clone();
 
                                                     web_sys::console::log_1(&"Adding landscape to scene...".into());
@@ -305,6 +316,30 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
                                                     let projectId = local_context.current_project_id.clone().expect("No project selected?");
                                                     let landscapeFilename = fileName.clone();
 
+                                                    // add to `levels.components` in SavedContext
+                                                    saved_context.dispatch(SavedAction::AddComponent(ComponentData {
+                                                        id: Uuid::new_v4().to_string(),
+                                                        kind: Some(ComponentKind::Landscape),
+                                                        asset_id: landscape_id.clone(),
+                                                        generic_properties: GenericProperties {
+                                                            name: "New Component".to_string()
+                                                        },
+                                                        landscape_properties: Some(LandscapeProperties {
+                                                            // primary_texture_id: heightmapId.clone(),
+                                                            // rockmap_texture_id: rockmapId.clone(),
+                                                            // soil_texture_id: soilId.clone()
+                                                            // these are the visible texture ids, not the map ids, so are added after adding
+                                                            primary_texture_id: None,
+                                                            rockmap_texture_id: None,
+                                                            soil_texture_id: None
+                                                        }),
+                                                        model_properties: None
+                                                    }));
+
+                                                    // update selected_component_id in LocalContext
+                                                    local_context.dispatch(LocalAction::SetSelectedComponent(landscape_id.clone()));
+
+                                                    // actually render the landscape in wgpu
                                                     handle_add_landscape(projectId, landscapeFilename);
                                                 }
                                             })}

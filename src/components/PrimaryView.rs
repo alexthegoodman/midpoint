@@ -1,5 +1,6 @@
 use serde::Serialize;
 use serde_wasm_bindgen::to_value;
+use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
@@ -9,7 +10,7 @@ use crate::components::MdButton::{MdButton, MdButtonKind, MdButtonVariant};
 use crate::components::SceneView::SceneView;
 use crate::contexts::local::{LocalAction, LocalContextType};
 use crate::contexts::localAsync::LocalAsync;
-use crate::contexts::saved::{SavedAction, SavedContextType};
+use crate::contexts::saved::{LevelData, SavedAction, SavedContextType};
 use crate::gql::createMdProject::create_md_project;
 use crate::gql::deleteMdProject::delete_md_project;
 use crate::gql::getMdProject::get_md_project;
@@ -222,85 +223,113 @@ pub fn primary_view() -> Html {
             }
 
             <div class="view-row" style={"display: ".to_owned() + &scene_display}>
-                <section>
-                    <div class="btn-row">
+                if saved_context.levels.is_none() {
+                    <section>
                         <MdButton
-                            label="Models"
+                            label="Add Level"
                             icon={""}
                             on_click={Callback::from({
-                                let browser_tab = browser_tab.clone();
+                                let saved_context = saved_context.clone();
 
                                 move |_| {
-                                    let browser_tab = browser_tab.clone();
+                                    let saved_context = saved_context.clone();
 
-                                    browser_tab.set("models".to_string());
+                                    web_sys::console::log_1(&"Adding level...".into());
+
+                                    saved_context.dispatch(SavedAction::AddLevel(LevelData {
+                                        id: Uuid::new_v4().to_string(),
+                                        components: None
+                                    }));
                                 }
                             })}
-                            disabled={*loading}
-                            loading={*loading}
+                            disabled={false}
+                            loading={false}
                             kind={MdButtonKind::SmallShort}
-                            variant={MdButtonVariant::Green}
+                            variant={MdButtonVariant::Negative}
                         />
-                        <MdButton
-                            label="Landscapes"
-                            icon={""}
-                            on_click={Callback::from({
-                                let browser_tab = browser_tab.clone();
-
-                                move |_| {
+                    </section>
+                }
+                if saved_context.levels.is_some() {
+                    <section>
+                        <div class="btn-row">
+                            <MdButton
+                                label="Models"
+                                icon={""}
+                                on_click={Callback::from({
                                     let browser_tab = browser_tab.clone();
 
-                                    browser_tab.set("landscapes".to_string());
-                                }
-                            })}
-                            disabled={*loading}
-                            loading={*loading}
-                            kind={MdButtonKind::SmallShort}
-                            variant={MdButtonVariant::Green}
-                        />
-                        <MdButton
-                            label="Textures"
-                            icon={""}
-                            on_click={Callback::from({
-                                let browser_tab = browser_tab.clone();
+                                    move |_| {
+                                        let browser_tab = browser_tab.clone();
 
-                                move |_| {
+                                        browser_tab.set("models".to_string());
+                                    }
+                                })}
+                                disabled={*loading}
+                                loading={*loading}
+                                kind={MdButtonKind::SmallShort}
+                                variant={MdButtonVariant::Green}
+                            />
+                            <MdButton
+                                label="Landscapes"
+                                icon={""}
+                                on_click={Callback::from({
                                     let browser_tab = browser_tab.clone();
 
-                                    browser_tab.set("textures".to_string());
-                                }
-                            })}
-                            disabled={*loading}
-                            loading={*loading}
-                            kind={MdButtonKind::SmallShort}
-                            variant={MdButtonVariant::Green}
-                        />
-                    </div>
-                    if *browser_tab == "models".to_string() {
-                        <FileBrowser
-                            variant={FileVariant::Asset}
-                            kind={FileKind::Model}
-                            files={saved_context.models.clone()}
-                            landscapes={None}
-                        />
-                    }
-                    if *browser_tab == "landscapes".to_string() {
-                        <FileBrowser
-                            variant={FileVariant::Asset}
-                            kind={FileKind::Landscape}
-                            landscapes={saved_context.landscapes.clone().unwrap_or(Vec::new())}
-                            files={None}
-                        />
-                    }
-                    if *browser_tab == "textures".to_string() {
-                        <FileBrowser
-                            variant={FileVariant::Asset}
-                            kind={FileKind::Texture}
-                            files={saved_context.textures.clone().unwrap_or(Vec::new())}
-                            landscapes={None}
-                        />
-                    }
-                </section>
+                                    move |_| {
+                                        let browser_tab = browser_tab.clone();
+
+                                        browser_tab.set("landscapes".to_string());
+                                    }
+                                })}
+                                disabled={*loading}
+                                loading={*loading}
+                                kind={MdButtonKind::SmallShort}
+                                variant={MdButtonVariant::Green}
+                            />
+                            <MdButton
+                                label="Textures"
+                                icon={""}
+                                on_click={Callback::from({
+                                    let browser_tab = browser_tab.clone();
+
+                                    move |_| {
+                                        let browser_tab = browser_tab.clone();
+
+                                        browser_tab.set("textures".to_string());
+                                    }
+                                })}
+                                disabled={*loading}
+                                loading={*loading}
+                                kind={MdButtonKind::SmallShort}
+                                variant={MdButtonVariant::Green}
+                            />
+                        </div>
+                        if *browser_tab == "models".to_string() {
+                            <FileBrowser
+                                variant={FileVariant::Asset}
+                                kind={FileKind::Model}
+                                files={saved_context.models.clone()}
+                                landscapes={None}
+                            />
+                        }
+                        if *browser_tab == "landscapes".to_string() {
+                            <FileBrowser
+                                variant={FileVariant::Asset}
+                                kind={FileKind::Landscape}
+                                landscapes={saved_context.landscapes.clone().unwrap_or(Vec::new())}
+                                files={None}
+                            />
+                        }
+                        if *browser_tab == "textures".to_string() {
+                            <FileBrowser
+                                variant={FileVariant::Asset}
+                                kind={FileKind::Texture}
+                                files={saved_context.textures.clone().unwrap_or(Vec::new())}
+                                landscapes={None}
+                            />
+                        }
+                    </section>
+                }
                 <section>
                     <SceneView />
                 </section>

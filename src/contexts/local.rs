@@ -25,6 +25,7 @@ pub struct LocalState {
     pub token: Option<String>,
     pub current_project_id: Option<String>,
     pub projects: Option<Vec<MdProject>>,
+    pub selected_component_id: Option<String>,
 }
 
 pub enum LocalAction {
@@ -34,6 +35,7 @@ pub enum LocalAction {
     SetCurrentProject(String),
     ClearCurrentProject,
     SetProjects(Vec<MdProject>),
+    SetSelectedComponent(String),
 }
 
 impl Default for LocalState {
@@ -43,6 +45,7 @@ impl Default for LocalState {
             token: None,
             current_project_id: None,
             projects: None,
+            selected_component_id: None,
         }
     }
 }
@@ -74,6 +77,10 @@ impl Reducible for LocalState {
             },
             LocalAction::SetProjects(projects) => LocalState {
                 projects: Some(projects),
+                ..(*self).clone() // Preserve other fields
+            },
+            LocalAction::SetSelectedComponent(asset_id) => LocalState {
+                selected_component_id: Some(asset_id),
                 ..(*self).clone() // Preserve other fields
             },
         };
