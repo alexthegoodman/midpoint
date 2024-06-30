@@ -29,11 +29,12 @@ use std::sync::Mutex;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use wasm_bindgen_futures::future_to_promise;
 
-use crate::renderer::shapes::Pyramid::Pyramid;
 use crate::renderer::Grid::Grid;
 use crate::renderer::Landscape::Landscape;
 use crate::renderer::Model::{Mesh, Model};
 use crate::renderer::SimpleCamera::SimpleCamera;
+use crate::renderer::Texture::Texture;
+use crate::{contexts::saved::LandscapeTextureKinds, renderer::shapes::Pyramid::Pyramid};
 
 // TODO: test this separate invoke
 #[wasm_bindgen]
@@ -51,7 +52,24 @@ pub struct ReadModelParams {
 #[derive(Serialize)]
 pub struct GetLandscapeParams {
     pub projectId: String,
+    pub landscapeAssetId: String,
     pub landscapeFilename: String,
+}
+
+#[derive(Serialize)]
+pub struct GetTextureParams {
+    pub projectId: String,
+    pub landscapeId: String,
+    pub textureFilename: String,
+    pub textureKind: String,
+}
+
+#[derive(Serialize)]
+pub struct GetMaskParams {
+    pub projectId: String,
+    pub landscapeId: String,
+    pub maskFilename: String,
+    pub maskKind: String,
 }
 
 #[repr(C)]
@@ -179,8 +197,9 @@ impl RendererState {
         self.models.push(model);
     }
 
-    fn add_landscape(&mut self, data: &LandscapeData) {
+    fn add_landscape(&mut self, landscapeComponentId: &String, data: &LandscapeData) {
         let landscape = Landscape::new(
+            landscapeComponentId,
             data,
             &self.device,
             &self.queue,
@@ -192,105 +211,37 @@ impl RendererState {
 
         self.landscapes.push(landscape);
     }
+
+    pub fn update_landscape_texture(
+        &mut self,
+        landscape_id: String,
+        kind: LandscapeTextureKinds,
+        texture: Texture,
+        maskKind: LandscapeTextureKinds,
+        mask: Texture,
+    ) {
+        if let Some(landscape) = self.landscapes.iter_mut().find(|l| l.id == landscape_id) {
+            landscape.update_texture(
+                &self.device,
+                &self.queue,
+                &self.texture_bind_group_layout,
+                &self.color_render_mode_buffer,
+                &self.texture_render_mode_buffer,
+                kind,
+                &texture,
+            );
+            landscape.update_texture(
+                &self.device,
+                &self.queue,
+                &self.texture_bind_group_layout,
+                &self.color_render_mode_buffer,
+                &self.texture_render_mode_buffer,
+                maskKind,
+                &mask,
+            );
+        }
+    }
 }
-
-// rc/refcell approach
-
-// use std::cell::RefCell;
-// use std::rc::Rc;
-
-// // Global mutable static variable for RendererState protected by an Rc and RefCell
-// static mut RENDERER_STATE: Option<Rc<RefCell<RendererState>>> = None;
-
-// thread_local! {
-//     static RENDERER_STATE_INIT: std::cell::Cell<bool> = std::cell::Cell::new(false);
-// }
-
-// // Function to initialize the RendererState
-// fn initialize_renderer_state(state: RendererState) {
-//     let state_refcell = Rc::new(RefCell::new(state));
-//     unsafe {
-//         RENDERER_STATE = Some(state_refcell);
-//     }
-//     RENDERER_STATE_INIT.with(|init| {
-//         init.set(true);
-//     });
-// }
-
-// // Function to get a mutable reference to the RendererState
-// pub fn get_renderer_state() -> &'static Rc<RefCell<RendererState>> {
-//     RENDERER_STATE_INIT.with(|init| {
-//         if !init.get() {
-//             panic!("RendererState not initialized");
-//         }
-//     });
-
-//     unsafe { RENDERER_STATE.as_ref().unwrap() }
-// }
-
-// arc approach
-
-// // Global mutable static variable for RendererState protected by a Mutex
-// static mut RENDERER_STATE: Option<Arc<RendererState>> = None;
-
-// thread_local! {
-//     static RENDERER_STATE_INIT: std::cell::Cell<bool> = std::cell::Cell::new(false);
-// }
-
-// // Function to initialize the RendererState
-// fn initialize_renderer_state(state: RendererState) {
-//     unsafe {
-//         RENDERER_STATE = Some(Arc::new(state));
-//     }
-//     RENDERER_STATE_INIT.with(|init| {
-//         init.set(true);
-//     });
-// }
-
-// // Function to get a mutable reference to the RendererState
-// pub fn get_renderer_state() -> &'static Arc<RendererState> {
-//     RENDERER_STATE_INIT.with(|init| {
-//         if !init.get() {
-//             panic!("RendererState not initialized");
-//         }
-//     });
-
-//     unsafe { RENDERER_STATE.as_ref().unwrap() }
-// }
-
-// arc 2
-
-// // Global mutable static variable for RendererState protected by an RwLock
-// static mut RENDERER_STATE: Option<Arc<RwLock<RendererState>>> = None;
-
-// // Function to initialize the RendererState
-// fn initialize_renderer_state(state: Arc<RwLock<RendererState>>) {
-//     unsafe {
-//         RENDERER_STATE = Some(state);
-//     }
-// }
-
-// // Function to get a read lock on the RendererState
-// pub fn get_renderer_state_read_lock() -> RwLockReadGuard<'static, RendererState> {
-//     unsafe {
-//         if let Some(state) = &RENDERER_STATE {
-//             state.read().unwrap()
-//         } else {
-//             panic!("RendererState not initialized");
-//         }
-//     }
-// }
-
-// // Function to get a write lock on the RendererState
-// pub fn get_renderer_state_write_lock() -> RwLockWriteGuard<'static, RendererState> {
-//     unsafe {
-//         if let Some(state) = &RENDERER_STATE {
-//             state.write().unwrap()
-//         } else {
-//             panic!("RendererState not initialized");
-//         }
-//     }
-// }
 
 static RENDERING_PAUSED: AtomicBool = AtomicBool::new(false);
 
@@ -338,39 +289,6 @@ pub fn get_renderer_state() -> &'static Mutex<RendererState> {
 
     unsafe { RENDERER_STATE.as_ref().unwrap() }
 }
-
-// // direct deref approach
-
-// // Global mutable static variable for RendererState
-// static mut RENDERER_STATE: *mut RendererState = std::ptr::null_mut();
-
-// thread_local! {
-//     static RENDERER_STATE_INIT: std::cell::Cell<bool> = std::cell::Cell::new(false);
-// }
-
-// // Function to initialize the RendererState
-// fn initialize_renderer_state(mut state: RendererState) {
-//     unsafe {
-//         RENDERER_STATE = &mut state as *mut RendererState;
-//     }
-//     RENDERER_STATE_INIT.with(|init| {
-//         init.set(true);
-//     });
-// }
-
-// // Function to get a mutable reference to the RendererState
-// pub fn get_renderer_state() -> &'static mut RendererState {
-//     RENDERER_STATE_INIT.with(|init| {
-//         if !init.get() {
-//             panic!("RendererState not initialized");
-//         }
-//     });
-
-//     unsafe {
-//         assert!(!RENDERER_STATE.is_null(), "RendererState pointer is null");
-//         &mut *RENDERER_STATE
-//     }
-// }
 
 // native rendering loop
 // #[wasm_bindgen]
@@ -578,7 +496,7 @@ pub async fn start_render_loop() {
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2,
+                        view_dimension: wgpu::TextureViewDimension::D2Array, // was D2 for normal textures?
                         sample_type: wgpu::TextureSampleType::Float { filterable: true },
                     },
                     count: None,
@@ -894,16 +812,25 @@ fn render_frame(
         // }
 
         for landscape in &state.landscapes {
-            landscape.transform.update_uniform_buffer(&queue);
-            render_pass.set_bind_group(0, &camera_bind_group, &[]);
-            render_pass.set_bind_group(1, &landscape.bind_group, &[]);
-            render_pass.set_bind_group(2, &landscape.texture_bind_group, &[]);
+            if (landscape.texture_bind_group.is_some()) {
+                landscape.transform.update_uniform_buffer(&queue);
+                render_pass.set_bind_group(0, &camera_bind_group, &[]);
+                render_pass.set_bind_group(1, &landscape.bind_group, &[]);
+                render_pass.set_bind_group(
+                    2,
+                    &landscape
+                        .texture_bind_group
+                        .as_ref()
+                        .expect("No landscape texture bind group"),
+                    &[],
+                );
 
-            render_pass.set_vertex_buffer(0, landscape.vertex_buffer.slice(..));
-            render_pass
-                .set_index_buffer(landscape.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                render_pass.set_vertex_buffer(0, landscape.vertex_buffer.slice(..));
+                render_pass
+                    .set_index_buffer(landscape.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
-            render_pass.draw_indexed(0..landscape.index_count as u32, 0, 0..1);
+                render_pass.draw_indexed(0..landscape.index_count as u32, 0, 0..1);
+            }
         }
     }
 
@@ -1057,7 +984,12 @@ pub struct PixelData {
 }
 
 #[wasm_bindgen]
-pub fn handle_add_landscape(projectId: String, landscapeFilename: String) {
+pub fn handle_add_landscape(
+    projectId: String,
+    landscapeAssetId: String,
+    landscapeComponentId: String,
+    landscapeFilename: String,
+) {
     pause_rendering();
 
     let state = get_renderer_state();
@@ -1069,6 +1001,7 @@ pub fn handle_add_landscape(projectId: String, landscapeFilename: String) {
 
         let params = to_value(&GetLandscapeParams {
             projectId,
+            landscapeAssetId,
             landscapeFilename,
         })
         .unwrap();
@@ -1078,10 +1011,141 @@ pub fn handle_add_landscape(projectId: String, landscapeFilename: String) {
             .into_serde()
             .expect("Failed to transform byte string to value");
 
-        state_guard.add_landscape(&data);
+        state_guard.add_landscape(&landscapeComponentId, &data);
 
         drop(state_guard);
 
         resume_rendering();
     });
+}
+
+#[wasm_bindgen]
+pub fn handle_add_landscape_texture(
+    project_id: String,
+    landscape_component_id: String,
+    landscape_asset_id: String,
+    texture_filename: String,
+    texture_kind: String,
+    mask_filename: String,
+) {
+    pause_rendering();
+
+    let state = get_renderer_state();
+    let mut state_guard = state.lock().unwrap();
+
+    // Clone the values that need to be moved into the closure
+    let landscape_component_id_clone = landscape_component_id.clone();
+    let texture_kind_clone = texture_kind.clone();
+
+    spawn_local(async move {
+        let texture = fetch_texture_data(
+            project_id.clone(),
+            landscape_asset_id.clone(),
+            texture_filename,
+            texture_kind.clone(),
+        )
+        .await;
+        let mask = fetch_mask_data(
+            project_id.clone(),
+            landscape_asset_id.clone(),
+            mask_filename,
+            texture_kind.clone(),
+        )
+        .await;
+
+        // if let Some(texture) = texture {
+        let kind = match texture_kind_clone.as_str() {
+            "Primary" => LandscapeTextureKinds::Primary,
+            "Rockmap" => LandscapeTextureKinds::Rockmap,
+            "Soil" => LandscapeTextureKinds::Soil,
+            _ => {
+                web_sys::console::error_1(
+                    &format!("Invalid texture kind: {}", texture_kind_clone).into(),
+                );
+                return;
+            }
+        };
+
+        let maskKind = match texture_kind_clone.as_str() {
+            "Primary" => LandscapeTextureKinds::PrimaryMask,
+            "Rockmap" => LandscapeTextureKinds::RockmapMask,
+            "Soil" => LandscapeTextureKinds::SoilMask,
+            _ => {
+                web_sys::console::error_1(
+                    &format!("Invalid texture kind: {}", texture_kind_clone).into(),
+                );
+                return;
+            }
+        };
+
+        state_guard.update_landscape_texture(
+            landscape_component_id_clone,
+            kind,
+            texture,
+            maskKind,
+            mask,
+        );
+        // } else {
+        //     web_sys::console::error_1(
+        //         &format!("Failed to fetch texture: {}", texture_filename).into(),
+        //     );
+        // }
+
+        drop(state_guard);
+
+        resume_rendering();
+    });
+}
+
+#[derive(Deserialize)]
+struct TextureData {
+    bytes: Vec<u8>,
+    width: u32,
+    height: u32,
+}
+
+async fn fetch_texture_data(
+    project_id: String,
+    landscape_id: String,
+    texture_filename: String,
+    texture_kind: String,
+) -> Texture {
+    let params = to_value(&GetTextureParams {
+        projectId: project_id,
+        landscapeId: landscape_id,
+        textureFilename: texture_filename,
+        textureKind: texture_kind,
+    })
+    .unwrap();
+    let js_data = invoke("read_landscape_texture", params).await;
+    let texture_data: TextureData = js_data
+        .into_serde()
+        .ok()
+        .expect("Couldn't transform texture data serde");
+
+    // Some((texture_data.data, texture_data.width, texture_data.height))
+    Texture::new(texture_data.bytes, texture_data.width, texture_data.height)
+}
+
+async fn fetch_mask_data(
+    project_id: String,
+    landscape_id: String,
+    mask_filename: String,
+    mask_kind: String,
+) -> Texture {
+    let params = to_value(&GetMaskParams {
+        projectId: project_id,
+        landscapeId: landscape_id,
+        maskFilename: mask_filename,
+        maskKind: mask_kind,
+    })
+    .unwrap();
+    let js_data = invoke("read_landscape_mask", params).await;
+    let mask_data: TextureData = js_data
+        .into_serde()
+        .ok()
+        .expect("Couldn't transform texture data serde");
+
+    // Some((texture_data.data, texture_data.width, texture_data.height))
+    Texture::new(mask_data.bytes, mask_data.width, mask_data.height)
 }

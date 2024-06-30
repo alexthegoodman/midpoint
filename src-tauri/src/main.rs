@@ -3,6 +3,7 @@
 
 use base64::decode;
 use image::io::Reader as ImageReader;
+use image::GenericImageView;
 use serde::Serialize;
 use std::convert::TryFrom;
 use std::fs;
@@ -133,6 +134,7 @@ fn read_tiff_heightmap(landscape_path: &str) -> (usize, usize, Vec<Vec<PixelData
 fn get_landscape_pixels(
     state: tauri::State<'_, AppState>,
     projectId: String,
+    landscapeAssetId: String,
     landscapeFilename: String,
 ) -> LandscapeData {
     let handle = &state.handle;
@@ -141,8 +143,13 @@ fn get_landscape_pixels(
     let env = handle.env();
 
     let sync_dir = PathBuf::from("C:/Users/alext/CommonOSFiles");
-    let landscapes_dir = sync_dir.join(format!("midpoint/projects/{}/landscapes", projectId));
+    let landscapes_dir = sync_dir.join(format!(
+        "midpoint/projects/{}/landscapes/{}/heightmaps",
+        projectId, landscapeAssetId
+    ));
     let landscape_path = landscapes_dir.join(landscapeFilename);
+
+    println!("landscape_path {:?}", landscape_path);
 
     let (width, height, pixel_data) = read_tiff_heightmap(
         landscape_path
@@ -307,6 +314,96 @@ async fn read_model(
     Ok(bytes)
 }
 
+#[derive(Serialize)]
+struct TextureData {
+    bytes: Vec<u8>,
+    width: u32,
+    height: u32,
+}
+
+#[tauri::command]
+async fn read_landscape_texture(
+    state: tauri::State<'_, AppState>,
+    projectId: String,
+    landscapeId: String,
+    textureFilename: String,
+    textureKind: String,
+) -> Result<TextureData, String> {
+    let handle = &state.handle;
+    let config = handle.config();
+    let package_info = handle.package_info();
+    let env = handle.env();
+
+    let sync_dir = PathBuf::from("C:/Users/alext/CommonOSFiles");
+    let texture_path = sync_dir.join(format!(
+        "midpoint/projects/{}/textures/{}",
+        projectId, textureFilename
+    ));
+
+    // Read the image file
+    let img = image::open(&texture_path)
+        .map_err(|e| format!("Failed to open landscape texture: {}", e))?;
+
+    // Get dimensions
+    let (width, height) = img.dimensions();
+
+    // Convert to RGBA
+    let rgba_img = img.to_rgba8();
+    let bytes = rgba_img.into_raw();
+
+    Ok(TextureData {
+        bytes,
+        width,
+        height,
+    })
+}
+
+#[tauri::command]
+async fn read_landscape_mask(
+    state: tauri::State<'_, AppState>,
+    projectId: String,
+    landscapeId: String,
+    maskFilename: String,
+    maskKind: String,
+) -> Result<TextureData, String> {
+    let handle = &state.handle;
+    let config = handle.config();
+    let package_info = handle.package_info();
+    let env = handle.env();
+
+    let kind_slug = match maskKind.as_str() {
+        "Primary" => "heightmaps",
+        "Rockmap" => "rockmaps",
+        "Soil" => "soils",
+        _ => "",
+    };
+
+    let sync_dir = PathBuf::from("C:/Users/alext/CommonOSFiles");
+    let mask_path = sync_dir.join(format!(
+        "midpoint/projects/{}/landscapes/{}/{}/{}",
+        projectId, landscapeId, kind_slug, maskFilename
+    ));
+
+    println!("mask_path {:?}", mask_path);
+
+    // Read the image file
+    let img =
+        image::open(&mask_path).map_err(|e| format!("Failed to open landscape mask: {}", e))?;
+
+    // Get dimensions
+    let (width, height) = img.dimensions();
+
+    // Convert to RGBA
+    let rgba_img = img.to_rgba8();
+    let bytes = rgba_img.into_raw();
+
+    Ok(TextureData {
+        bytes,
+        width,
+        height,
+    })
+}
+
 #[tauri::command]
 fn save_landscape(
     state: tauri::State<'_, AppState>,
@@ -401,6 +498,8 @@ fn main() {
             get_landscape_pixels,
             save_landscape,
             save_texture,
+            read_landscape_texture,
+            read_landscape_mask,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

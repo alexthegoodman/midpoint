@@ -315,14 +315,15 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
 
                                                     let projectId = local_context.current_project_id.clone().expect("No project selected?");
                                                     let landscapeFilename = fileName.clone();
+                                                    let landscapeComponentId = Uuid::new_v4().to_string();
 
                                                     // add to `levels.components` in SavedContext
                                                     saved_context.dispatch(SavedAction::AddComponent(ComponentData {
-                                                        id: Uuid::new_v4().to_string(),
+                                                        id: landscapeComponentId.clone(),
                                                         kind: Some(ComponentKind::Landscape),
                                                         asset_id: landscape_id.clone(),
                                                         generic_properties: GenericProperties {
-                                                            name: "New Component".to_string()
+                                                            name: "New Landscape Component".to_string()
                                                         },
                                                         landscape_properties: Some(LandscapeProperties {
                                                             // primary_texture_id: heightmapId.clone(),
@@ -337,10 +338,10 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
                                                     }));
 
                                                     // update selected_component_id in LocalContext
-                                                    local_context.dispatch(LocalAction::SetSelectedComponent(landscape_id.clone()));
+                                                    local_context.dispatch(LocalAction::SetSelectedComponent(landscapeComponentId.clone()));
 
                                                     // actually render the landscape in wgpu
-                                                    handle_add_landscape(projectId, landscapeFilename);
+                                                    handle_add_landscape(projectId, landscape_id.clone(), landscapeComponentId.clone(), landscapeFilename);
                                                 }
                                             })}
                                             disabled={*loading}

@@ -11,6 +11,8 @@ use crate::contexts::{
     },
 };
 
+use crate::renderer::core::handle_add_landscape_texture;
+
 const EMPTY_COMPONENT_DATA: ComponentData = ComponentData {
     id: String::new(),
     kind: None,
@@ -20,6 +22,13 @@ const EMPTY_COMPONENT_DATA: ComponentData = ComponentData {
     },
     landscape_properties: None,
     model_properties: None,
+};
+
+const EMPTY_LANDSCAPE_ASSET_DATA: LandscapeData = LandscapeData {
+    id: String::new(),
+    heightmap: None,
+    rockmap: None,
+    soil: None,
 };
 
 lazy_static! {
@@ -39,6 +48,9 @@ pub fn component_view() -> Html {
 
     let selected_component_id = selected_component_id.clone();
 
+    web_sys::console::log_1(&format!("selected_component_id..., {}", selected_component_id).into());
+    web_sys::console::log_1(&format!("saved_context.levels: {:#?}", saved_context.levels).into());
+
     let selected_component_data = saved_context.levels.as_ref().and_then(|levels| {
         levels
             .iter()
@@ -49,24 +61,26 @@ pub fn component_view() -> Html {
 
     let selected_component_data = selected_component_data.unwrap_or(EMPTY_COMPONENT_DATA);
 
+    web_sys::console::log_1(
+        &format!(
+            "selected_component kind..., {:#?}",
+            selected_component_data.kind
+        )
+        .into(),
+    );
+
     let landscape_asset_data = if selected_component_data.kind == Some(ComponentKind::Landscape) {
         saved_context.landscapes.as_ref().and_then(|landscapes| {
             landscapes
                 .iter()
                 .find(|landscape| landscape.id == selected_component_data.asset_id)
+                .cloned()
         })
     } else {
         None
     };
 
-    let empty_landscape_asset_data = &&LandscapeData {
-        id: "".to_string(),
-        heightmap: None,
-        rockmap: None,
-        soil: None,
-    };
-
-    let landscape_asset_data = landscape_asset_data.unwrap_or(empty_landscape_asset_data);
+    let landscape_asset_data = landscape_asset_data.unwrap_or(EMPTY_LANDSCAPE_ASSET_DATA);
 
     let available_textures = saved_context.textures.clone().unwrap_or(Vec::new());
 
@@ -93,27 +107,53 @@ pub fn component_view() -> Html {
                                         <label>{"Primary Texture"}</label>
                                         <select
                                             onchange={{
+                                                let local_context = local_context.clone();
+                                                let available_textures = available_textures.clone();
                                                 let selected_component_id = selected_component_id.clone();
+                                                let asset_id = landscape_asset_data.clone().id;
                                                 let saved_context = saved_context.clone();
 
                                                 Callback::from(move |e: Event| {
+                                                    let local_context = local_context.clone();
+                                                    let available_textures = available_textures.clone();
                                                     let selected_component_id = selected_component_id.clone();
                                                     let saved_context = saved_context.clone();
+                                                    let asset_id = asset_id.clone();
                                                     let input = e.target_dyn_into::<HtmlSelectElement>();
 
                                                     if let Some(input) = input {
                                                         saved_context.dispatch(
-                                                            SavedAction::SetLandscapeTexture(selected_component_id.clone(),
-                                                            LandscapeTextureKinds::Primary,
-                                                            input.value()
-                                                        ));
+                                                            SavedAction::SetLandscapeTexture(
+                                                                selected_component_id.clone(),
+                                                                LandscapeTextureKinds::Primary,
+                                                                input.value()
+                                                            )
+                                                        );
+
+                                                        let landscape = saved_context.landscapes.as_ref().expect("No landscapes?").iter().find(|l| l.id == asset_id);
+
+                                                        if let Some(texture) = available_textures.clone().iter().find(|t| t.id.clone() == input.value()) {
+                                                            handle_add_landscape_texture(
+                                                                local_context.current_project_id.clone().expect("Couldn't get project id"),
+                                                                selected_component_id.clone(),
+                                                                asset_id.clone(),
+                                                                texture.fileName.clone(),
+                                                                "Primary".to_string(),
+                                                                landscape.clone().expect("No landscape?").heightmap.clone().expect("No heightmap?").fileName
+                                                            );
+                                                        } else {
+                                                            web_sys::console::error_1(
+                                                                &"Couldn't add landscape texture".into(),
+                                                            );
+                                                        }
                                                     }
                                                 })
                                             }}
                                         >
+                                            <option value="">{"Select Texture"}</option>
                                             {available_textures.clone().into_iter().map(|texture| {
                                                 html!{
-                                                    <option value={texture.id}>{texture.fileName}</option>
+                                                    <option value={texture.id.clone()}>{texture.fileName.clone()}</option>
                                                 }
                                             }).collect::<Html>()}
                                         </select>
@@ -122,24 +162,51 @@ pub fn component_view() -> Html {
                                         <label>{"RockMap Texture"}</label>
                                         <select
                                             onchange={{
+                                                let local_context = local_context.clone();
+                                                let available_textures = available_textures.clone();
                                                 let selected_component_id = selected_component_id.clone();
+                                                let asset_id = landscape_asset_data.clone().id;
                                                 let saved_context = saved_context.clone();
 
+
                                                 Callback::from(move |e: Event| {
+                                                    let local_context = local_context.clone();
+                                                    let available_textures = available_textures.clone();
                                                     let selected_component_id = selected_component_id.clone();
                                                     let saved_context = saved_context.clone();
+                                                    let asset_id = asset_id.clone();
                                                     let input = e.target_dyn_into::<HtmlSelectElement>();
 
                                                     if let Some(input) = input {
                                                         saved_context.dispatch(
-                                                            SavedAction::SetLandscapeTexture(selected_component_id.clone(),
-                                                            LandscapeTextureKinds::Rockmap,
-                                                            input.value()
-                                                        ));
+                                                            SavedAction::SetLandscapeTexture(
+                                                                selected_component_id.clone(),
+                                                                LandscapeTextureKinds::Rockmap,
+                                                                input.value()
+                                                            )
+                                                        );
+
+                                                        let landscape = saved_context.landscapes.as_ref().expect("No landscapes?").iter().find(|l| l.id == asset_id);
+
+                                                        if let Some(texture) = available_textures.clone().iter().find(|t| t.id.clone() == input.value()) {
+                                                            handle_add_landscape_texture(
+                                                                local_context.current_project_id.clone().expect("Couldn't get project id"),
+                                                                selected_component_id.clone(),
+                                                                asset_id.clone(),
+                                                                texture.fileName.clone(),
+                                                                "Rockmap".to_string(),
+                                                                landscape.clone().expect("No landscape?").rockmap.clone().expect("No rockmap?").fileName
+                                                            );
+                                                        } else {
+                                                            web_sys::console::error_1(
+                                                                &"Couldn't add landscape texture".into(),
+                                                            );
+                                                        }
                                                     }
                                                 })
                                             }}
                                         >
+                                            <option value="">{"Select Texture"}</option>
                                             {available_textures.clone().into_iter().map(|texture| {
                                                 html!{
                                                     <option value={texture.id}>{texture.fileName}</option>
@@ -151,24 +218,50 @@ pub fn component_view() -> Html {
                                         <label>{"Soil Texture"}</label>
                                         <select
                                             onchange={{
+                                                let local_context = local_context.clone();
+                                                let available_textures = available_textures.clone();
                                                 let selected_component_id = selected_component_id.clone();
+                                                let asset_id = landscape_asset_data.clone().id;
                                                 let saved_context = saved_context.clone();
 
                                                 Callback::from(move |e: Event| {
+                                                    let local_context = local_context.clone();
+                                                    let available_textures = available_textures.clone();
                                                     let selected_component_id = selected_component_id.clone();
                                                     let saved_context = saved_context.clone();
+                                                    let asset_id = asset_id.clone();
                                                     let input = e.target_dyn_into::<HtmlSelectElement>();
 
                                                     if let Some(input) = input {
                                                         saved_context.dispatch(
-                                                            SavedAction::SetLandscapeTexture(selected_component_id.clone(),
-                                                            LandscapeTextureKinds::Soil,
-                                                            input.value()
-                                                        ));
+                                                            SavedAction::SetLandscapeTexture(
+                                                                selected_component_id.clone(),
+                                                                LandscapeTextureKinds::Soil,
+                                                                input.value()
+                                                            )
+                                                        );
+
+                                                        let landscape = saved_context.landscapes.as_ref().expect("No landscapes?").iter().find(|l| l.id == asset_id);
+
+                                                        if let Some(texture) = available_textures.clone().iter().find(|t| t.id.clone() == input.value()) {
+                                                            handle_add_landscape_texture(
+                                                                local_context.current_project_id.clone().expect("Couldn't get project id"),
+                                                                selected_component_id.clone(),
+                                                                asset_id.clone(),
+                                                                texture.fileName.clone(),
+                                                                "Soil".to_string(),
+                                                                landscape.clone().expect("No landscape?").soil.clone().expect("No soil?").fileName
+                                                            );
+                                                        } else {
+                                                            web_sys::console::error_1(
+                                                                &"Couldn't add landscape texture".into(),
+                                                            );
+                                                        }
                                                     }
                                                 })
                                             }}
                                         >
+                                            <option value="">{"Select Texture"}</option>
                                             {available_textures.clone().into_iter().map(|texture| {
                                                 html!{
                                                     <option value={texture.id}>{texture.fileName}</option>

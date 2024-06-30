@@ -4,6 +4,7 @@ use uuid::Uuid;
 use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
+use crate::components::ComponentView::ComponentView;
 use crate::components::FileBrowser::{FileBrowser, FileKind, FileVariant};
 use crate::components::FileViewer::FileViewer;
 use crate::components::MdButton::{MdButton, MdButtonKind, MdButtonVariant};
@@ -223,7 +224,7 @@ pub fn primary_view() -> Html {
             }
 
             <div class="view-row" style={"display: ".to_owned() + &scene_display}>
-                if saved_context.levels.is_none() {
+                if saved_context.levels.is_some() {
                     <section>
                         <MdButton
                             label="Add Level"
@@ -247,10 +248,7 @@ pub fn primary_view() -> Html {
                             kind={MdButtonKind::SmallShort}
                             variant={MdButtonVariant::Negative}
                         />
-                    </section>
-                }
-                if saved_context.levels.is_some() {
-                    <section>
+
                         <div class="btn-row">
                             <MdButton
                                 label="Models"
@@ -332,6 +330,7 @@ pub fn primary_view() -> Html {
                 }
                 <section>
                     <SceneView />
+                    <ComponentView />
                 </section>
             </div>
         </section>
