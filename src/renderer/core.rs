@@ -226,8 +226,8 @@ impl RendererState {
                 &self.device,
                 &self.queue,
                 &self.texture_bind_group_layout,
-                &self.color_render_mode_buffer,
                 &self.texture_render_mode_buffer,
+                &self.color_render_mode_buffer,
                 kind,
                 &texture,
             );
@@ -235,8 +235,8 @@ impl RendererState {
                 &self.device,
                 &self.queue,
                 &self.texture_bind_group_layout,
-                &self.color_render_mode_buffer,
                 &self.texture_render_mode_buffer,
+                &self.color_render_mode_buffer,
                 maskKind,
                 &mask,
             );
@@ -797,20 +797,20 @@ fn render_frame(
         // web_sys::console::log_1(&"Model count...".into());
         // web_sys::console::log_1(&state.models.len().into());
 
-        // for model in &state.models {
-        //     for mesh in &model.meshes {
-        //         mesh.transform.update_uniform_buffer(&queue);
-        //         render_pass.set_bind_group(0, &camera_bind_group, &[]);
-        //         render_pass.set_bind_group(1, &mesh.bind_group, &[]);
-        //         render_pass.set_bind_group(2, &mesh.texture_bind_group, &[]);
+        for model in &state.models {
+            for mesh in &model.meshes {
+                mesh.transform.update_uniform_buffer(&queue);
+                render_pass.set_bind_group(0, &camera_bind_group, &[]);
+                render_pass.set_bind_group(1, &mesh.bind_group, &[]);
+                render_pass.set_bind_group(2, &mesh.texture_bind_group, &[]);
 
-        //         render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-        //         render_pass
-        //             .set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+                render_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                render_pass
+                    .set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-        //         render_pass.draw_indexed(0..mesh.index_count as u32, 0, 0..1);
-        //     }
-        // }
+                render_pass.draw_indexed(0..mesh.index_count as u32, 0, 0..1);
+            }
+        }
 
         for landscape in &state.landscapes {
             if (landscape.texture_bind_group.is_some()) {

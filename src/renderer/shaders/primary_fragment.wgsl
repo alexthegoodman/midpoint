@@ -108,5 +108,14 @@ fn main(in: FragmentInput) -> @location(0) vec4<f32> {
                       rockmap.rgb * rockmap_weight + 
                       soil.rgb * soil_weight;
 
-    return vec4<f32>(final_color, 1.0);
+    // return vec4<f32>(final_color, 1.0);
+    
+    if (renderMode == 1) { // Assume 1 means rendering texture
+        return vec4<f32>(final_color, 1.0); // Texture rendering
+    } else {
+        return vec4(in.color, 1.0); // Color mode
+    }
+
+    // debug color coating
+    // return vec4<f32>(f32(renderMode), 0.0, 0.0, 1.0);
 }

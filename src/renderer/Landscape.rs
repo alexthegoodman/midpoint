@@ -249,7 +249,11 @@ impl Landscape {
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
-                        resource: texture_render_mode_buffer.as_entire_binding(),
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: texture_render_mode_buffer,
+                            offset: 0,
+                            size: None,
+                        }),
                     },
                 ],
                 label: Some("landscape_texture_bind_group"),
