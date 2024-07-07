@@ -156,6 +156,7 @@ impl RendererState {
         grids.push(Grid::new(
             &device,
             &model_bind_group_layout,
+            &texture_bind_group_layout,
             &color_render_mode_buffer,
         ));
 
@@ -770,16 +771,16 @@ fn render_frame(
         );
 
         // draw utility grids
-        // for grid in &state.grids {
-        //     render_pass.set_bind_group(0, &camera_bind_group, &[]);
-        //     render_pass.set_bind_group(1, &grid.bind_group, &[]);
-        // TODO: texture_bind_group?
+        for grid in &state.grids {
+            render_pass.set_bind_group(0, &camera_bind_group, &[]);
+            render_pass.set_bind_group(1, &grid.bind_group, &[]);
+            render_pass.set_bind_group(2, &grid.texture_bind_group, &[]);
 
-        //     render_pass.set_vertex_buffer(0, grid.vertex_buffer.slice(..));
-        //     render_pass.set_index_buffer(grid.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.set_vertex_buffer(0, grid.vertex_buffer.slice(..));
+            render_pass.set_index_buffer(grid.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-        //     render_pass.draw_indexed(0..grid.index_count, 0, 0..1);
-        // }
+            render_pass.draw_indexed(0..grid.index_count, 0, 0..1);
+        }
 
         // // draw pyramids
         // for pyramid in &state.pyramids {

@@ -5,16 +5,18 @@ use crate::renderer::core::Vertex;
 use crate::renderer::Transform::matrix4_to_raw_array;
 
 pub struct Grid {
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-    index_count: u32,
-    bind_group: wgpu::BindGroup,
+    pub vertex_buffer: wgpu::Buffer,
+    pub index_buffer: wgpu::Buffer,
+    pub index_count: u32,
+    pub bind_group: wgpu::BindGroup,
+    pub texture_bind_group: wgpu::BindGroup,
 }
 
 impl Grid {
     pub fn new(
         device: &wgpu::Device,
         bind_group_layout: &wgpu::BindGroupLayout,
+        texture_bind_group_layout: &wgpu::BindGroupLayout,
         color_render_mode_buffer: &wgpu::Buffer,
     ) -> Self {
         // Generate grid vertices and indices
@@ -41,25 +43,63 @@ impl Grid {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        // TODO: fragment bind group to provide render mode?
-
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: uniform_buffer.as_entire_binding(),
+            }],
+            label: None,
+        });
+
+        // Create a default empty texture and sampler
+        let default_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Default Empty Grid Texture"),
+            size: wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        let default_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+
+        let default_texture_view = default_texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2Array),
+            ..Default::default()
+        });
+
+        let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: texture_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: uniform_buffer.as_entire_binding(),
+                    resource: wgpu::BindingResource::TextureView(&default_texture_view),
                 },
-                // wgpu::BindGroupEntry {
-                //     binding: 1,
-                //     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                //         buffer: color_render_mode_buffer,
-                //         offset: 0,
-                //         size: None,
-                //     }),
-                // },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&default_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: color_render_mode_buffer.as_entire_binding(),
+                },
             ],
-            label: None,
+            label: Some("grid_texture_bind_group"),
         });
 
         Self {
@@ -67,6 +107,7 @@ impl Grid {
             index_buffer,
             index_count: indices.len() as u32,
             bind_group,
+            texture_bind_group,
         }
     }
 

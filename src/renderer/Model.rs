@@ -148,8 +148,10 @@ impl Model {
             ..Default::default()
         });
 
-        let default_texture_view =
-            default_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let default_texture_view = default_texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2Array),
+            ..Default::default()
+        });
 
         for mesh in gltf.meshes() {
             for primitive in mesh.primitives() {
