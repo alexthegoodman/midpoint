@@ -990,6 +990,7 @@ pub fn handle_add_landscape(
     landscapeAssetId: String,
     landscapeComponentId: String,
     landscapeFilename: String,
+    callback: js_sys::Function,
 ) {
     pause_rendering();
 
@@ -1017,6 +1018,9 @@ pub fn handle_add_landscape(
         drop(state_guard);
 
         resume_rendering();
+
+        let this = JsValue::null();
+        let _ = callback.call0(&this);
     });
 }
 

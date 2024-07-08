@@ -128,6 +128,21 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
         })
     };
 
+    let callback = {
+        let loading = loading.clone();
+
+        Callback::from(move |_| {
+            loading.set(false);
+        })
+    };
+
+    // Convert the callback to a js_sys::Function
+    let js_callback: js_sys::Function = Closure::wrap(Box::new(move || {
+        callback.emit(());
+    }) as Box<dyn FnMut()>)
+    .into_js_value()
+    .unchecked_into();
+
     html! {
         <section class="file-browser">
             if props.variant == FileVariant::Concept {
@@ -281,6 +296,7 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
                                 let landscape_id = landscape.id.clone();
                                 let hasRockmap = landscape.rockmap.is_some();
                                 let hasSoil = landscape.soil.is_some();
+                                let loading = loading.clone();
                                 let heightmapCloudfrontUrl = landscape.heightmap.clone().unwrap_or_default().cloudfrontUrl.clone();
                                 let heightmapFilename = landscape.heightmap.clone().unwrap_or_default().fileName.clone();
 
@@ -304,14 +320,18 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
                                                 let local_context = local_context.clone();
                                                 let saved_context = saved_context.clone();
                                                 let loading = loading.clone();
+                                                let js_callback = js_callback.clone();
                                                 let fileName = heightmapFilename.clone();
 
                                                 move |_| {
                                                     let local_context = local_context.clone();
                                                     let saved_context = saved_context.clone();
                                                     let loading = loading.clone();
+                                                    let js_callback = js_callback.clone();
 
                                                     web_sys::console::log_1(&"Adding landscape to scene...".into());
+
+                                                    loading.set(true);
 
                                                     let projectId = local_context.current_project_id.clone().expect("No project selected?");
                                                     let landscapeFilename = fileName.clone();
@@ -341,7 +361,7 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
                                                     local_context.dispatch(LocalAction::SetSelectedComponent(landscapeComponentId.clone()));
 
                                                     // actually render the landscape in wgpu
-                                                    handle_add_landscape(projectId, landscape_id.clone(), landscapeComponentId.clone(), landscapeFilename);
+                                                    handle_add_landscape(projectId, landscape_id.clone(), landscapeComponentId.clone(), landscapeFilename, js_callback);
                                                 }
                                             })}
                                             disabled={*loading}
