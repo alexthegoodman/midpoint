@@ -6,10 +6,6 @@ use yew::prelude::*;
 
 use serde::{Deserialize, Serialize};
 
-use crate::gql::getMdProjects::get_md_projects;
-
-use super::saved::SavedState;
-
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct MdProject {
     pub id: String,

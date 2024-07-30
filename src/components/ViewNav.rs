@@ -1,7 +1,3 @@
-use serde::{Deserialize, Serialize};
-use serde_wasm_bindgen::to_value;
-use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::spawn_local;
 use yew::prelude::*;
 
 use crate::{
@@ -9,18 +5,52 @@ use crate::{
     contexts::local::{LocalAction, LocalContextType},
 };
 
+struct NavOption {
+    icon: &'static str,
+    route: &'static str,
+}
+
 #[function_component]
 pub fn ViewNav() -> Html {
     let local_context = use_context::<LocalContextType>().expect("No LocalContext found");
 
+    let nav_options = vec![
+        NavOption {
+            icon: "panorama",
+            route: "/concepts",
+        },
+        NavOption {
+            icon: "map-trifold",
+            route: "/map",
+        },
+        NavOption {
+            icon: "book-open",
+            route: "/story",
+        },
+        NavOption {
+            icon: "cube-focus",
+            route: "/scene",
+        },
+        NavOption {
+            icon: "faders",
+            route: "/audio",
+        },
+        NavOption {
+            icon: "speedometer",
+            route: "/performance",
+        },
+        NavOption {
+            icon: "gear",
+            route: "/settings",
+        },
+    ];
+
     if local_context.current_project_id.is_none() {
         return html! {
-            <nav
-                class="view-nav"
-            >
+            <nav class="view-nav">
                 <MdButton
                     label=""
-                    icon={"sparkle"}
+                    icon="sparkle"
                     on_click={Callback::from({
                         let local_context = local_context.clone();
                         move |_| {
@@ -37,108 +67,23 @@ pub fn ViewNav() -> Html {
     }
 
     html! {
-        <nav
-            class="view-nav"
-        >
-            <MdButton
-                label=""
-                icon={"panorama"}
-                on_click={Callback::from({
-                    let local_context = local_context.clone();
-                    move |_| {
-                        web_sys::console::log_1(&"Enter concepts".into());
-                        local_context.dispatch(LocalAction::SetRoute("/concepts".to_string()));
-                    }
-                })}
-                disabled={false}
-                loading={false}
-                kind={MdButtonKind::MediumShadow}
-                variant={MdButtonVariant::Light}
-            />
-            <MdButton
-                label=""
-                icon={"map-trifold"}
-                on_click={Callback::from({
-                    let local_context = local_context.clone();
-                    move |_| {
-                        local_context.dispatch(LocalAction::SetRoute("/map".to_string()));
-                    }
-                })}
-                disabled={false}
-                loading={false}
-                kind={MdButtonKind::MediumShadow}
-                variant={MdButtonVariant::Light}
-            />
-            <MdButton
-                label=""
-                icon={"book-open"}
-                on_click={Callback::from({
-                    let local_context = local_context.clone();
-                    move |_| {
-                        local_context.dispatch(LocalAction::SetRoute("/story".to_string()));
-                    }
-                })}
-                disabled={false}
-                loading={false}
-                kind={MdButtonKind::MediumShadow}
-                variant={MdButtonVariant::Light}
-            />
-            <MdButton
-                label=""
-                icon={"cube-focus"}
-                on_click={Callback::from({
-                    let local_context = local_context.clone();
-                    move |_| {
-                        local_context.dispatch(LocalAction::SetRoute("/scene".to_string()));
-                    }
-                })}
-                disabled={false}
-                loading={false}
-                kind={MdButtonKind::MediumShadow}
-                variant={MdButtonVariant::Light}
-            />
-            <MdButton
-                label=""
-                icon={"faders"}
-                on_click={Callback::from({
-                    let local_context = local_context.clone();
-                    move |_| {
-                        local_context.dispatch(LocalAction::SetRoute("/audio".to_string()));
-                    }
-                })}
-                disabled={false}
-                loading={false}
-                kind={MdButtonKind::MediumShadow}
-                variant={MdButtonVariant::Light}
-            />
-            <MdButton
-                label=""
-                icon={"speedometer"}
-                on_click={Callback::from({
-                    let local_context = local_context.clone();
-                    move |_| {
-                        local_context.dispatch(LocalAction::SetRoute("/performance".to_string()));
-                    }
-                })}
-                disabled={false}
-                loading={false}
-                kind={MdButtonKind::MediumShadow}
-                variant={MdButtonVariant::Light}
-            />
-            <MdButton
-                label=""
-                icon={"gear"}
-                on_click={Callback::from({
-                    let local_context = local_context.clone();
-                    move |_| {
-                        local_context.dispatch(LocalAction::SetRoute("/settings".to_string()));
-                    }
-                })}
-                disabled={false}
-                loading={false}
-                kind={MdButtonKind::MediumShadow}
-                variant={MdButtonVariant::Light}
-            />
+        <nav class="view-nav">
+            {nav_options.into_iter().map(|option| {
+                let local_context = local_context.clone();
+                html! {
+                    <MdButton
+                        label=""
+                        icon={option.icon}
+                        on_click={Callback::from(move |_| {
+                            local_context.dispatch(LocalAction::SetRoute(option.route.to_string()));
+                        })}
+                        disabled={false}
+                        loading={false}
+                        kind={MdButtonKind::MediumShadow}
+                        variant={MdButtonVariant::Light}
+                    />
+                }
+            }).collect::<Html>()}
         </nav>
     }
 }

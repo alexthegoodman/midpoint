@@ -36,6 +36,8 @@ use crate::renderer::SimpleCamera::SimpleCamera;
 use crate::renderer::Texture::Texture;
 use crate::{contexts::saved::LandscapeTextureKinds, renderer::shapes::Pyramid::Pyramid};
 
+use super::shapes::Cube::Cube;
+
 // TODO: test this separate invoke
 #[wasm_bindgen]
 extern "C" {
@@ -128,6 +130,7 @@ pub fn get_camera() -> &'static mut SimpleCamera {
 
 // #[derive(std::ops::DerefMut)]
 struct RendererState {
+    cubes: Vec<Cube>,
     pyramids: Vec<Pyramid>,
     grids: Vec<Grid>,
     models: Vec<Model>,
@@ -160,6 +163,9 @@ impl RendererState {
             &color_render_mode_buffer,
         ));
 
+        let mut cubes = Vec::new();
+        cubes.push(Cube::new(&device, &texture_bind_group_layout));
+
         let mut pyramids = Vec::new();
         // pyramids.push(Pyramid::new(device, bind_group_layout, color_render_mode_buffer));
         // add more pyramids as needed
@@ -169,6 +175,7 @@ impl RendererState {
         let mut landscapes = Vec::new();
 
         Self {
+            cubes,
             pyramids,
             grids,
             models,
@@ -416,20 +423,6 @@ pub async fn start_render_loop() {
     let swapchain_capabilities = surface.get_capabilities(&adapter);
     let swap_chain_format = swapchain_capabilities.formats[0]; // Choosing the first available format
 
-    // let size = canvas.get_bounding_client_rect();
-    // let swap_chain_descriptor = wgpu::SurfaceConfiguration {
-    //     usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-    //     format: swap_chain_format,
-    //     width: width as u32,
-    //     height: height as u32,
-    //     present_mode: wgpu::PresentMode::Fifo,
-    //     desired_maximum_frame_latency: 1,
-    //     alpha_mode: wgpu::CompositeAlphaMode::Opaque,
-    //     view_formats: vec![swap_chain_format], // Check?
-    // };
-
-    // surface.configure(&device, &swap_chain_descriptor);
-
     let mut config = surface.get_default_config(&adapter, width, height).unwrap();
     surface.configure(&device, &config);
 
@@ -497,7 +490,7 @@ pub async fn start_render_loop() {
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
-                        view_dimension: wgpu::TextureViewDimension::D2Array, // was D2 for normal textures?
+                        view_dimension: wgpu::TextureViewDimension::D2Array,
                         sample_type: wgpu::TextureSampleType::Float { filterable: true },
                     },
                     count: None,
@@ -519,7 +512,7 @@ pub async fn start_render_loop() {
                     count: None,
                 },
             ],
-            label: Some("Model Bind Group Layout"),
+            label: Some("Texture Bind Group Layout"),
         });
 
     let texture_bind_group_layout = Arc::new(texture_bind_group_layout);
@@ -707,8 +700,6 @@ fn render_frame(
     surface: &wgpu::Surface,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    // device: Arc<wgpu::Device>,
-    // queue: Arc<wgpu::Queue>,
     render_pipeline: &wgpu::RenderPipeline,
     depth_view: &wgpu::TextureView,
     camera_bind_group: &wgpu::BindGroup,
@@ -793,6 +784,18 @@ fn render_frame(
 
         //     render_pass.draw_indexed(0..INDICES.len() as u32, 0, 0..1);
         // }
+
+        // draw cubes
+        for cube in &state.cubes {
+            cube.transform.update_uniform_buffer(&queue);
+            render_pass.set_bind_group(0, &camera_bind_group, &[]);
+            render_pass.set_bind_group(1, &cube.bind_group, &[]);
+
+            render_pass.set_vertex_buffer(0, cube.vertex_buffer.slice(..));
+            render_pass.set_index_buffer(cube.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+
+            render_pass.draw_indexed(0..cube.index_count as u32, 0, 0..1);
+        }
 
         // web_sys::console::log_1(&"Model count...".into());
         // web_sys::console::log_1(&state.models.len().into());
