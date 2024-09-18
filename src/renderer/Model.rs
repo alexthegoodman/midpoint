@@ -34,14 +34,6 @@ impl Model {
         texture_render_mode_buffer: &wgpu::Buffer,
         color_render_mode_buffer: &wgpu::Buffer,
     ) -> Self {
-        // let response = reqwest::get(uri).await;
-        // let bytes = response
-        //     .expect("Response failed")
-        //     .bytes()
-        //     .await
-        //     .expect("Couldnt fetch bytes")
-        //     .to_vec();
-
         web_sys::console::log_1(&format!("Bytes len: {:?}", bytes.len()).into());
 
         let glb = Glb::from_slice(&bytes).expect("Couldn't create glb from slice");

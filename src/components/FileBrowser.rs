@@ -265,7 +265,6 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
 
                                     web_sys::console::log_1(&landscapeFilename.clone().into());
 
-                                    // save as image inside folder within sync folder: /CommonOSFiles/midpoint/projects/project_id/concepts/
                                     let projectId = local_context.current_project_id.clone().expect("No project selected?");
                                     let params = to_value(&SaveLandscapeParams {
                                         projectId,
@@ -299,10 +298,6 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
                                 let loading = loading.clone();
                                 let heightmapCloudfrontUrl = landscape.heightmap.clone().unwrap_or_default().cloudfrontUrl.clone();
                                 let heightmapFilename = landscape.heightmap.clone().unwrap_or_default().fileName.clone();
-
-                                // let heightmapId = landscape.heightmap.clone().unwrap_or_default().id.clone();
-                                // let rockmapId = landscape.rockmap.clone().unwrap_or_default().id.clone();
-                                // let soilId = landscape.soil.clone().unwrap_or_default().id.clone();
 
                                 html!{
                                     <div class="file-item" key={landscape_id.clone()}>
@@ -346,9 +341,6 @@ pub fn FileBrowser(props: &FileBrowserProps) -> Html {
                                                             name: "New Landscape Component".to_string()
                                                         },
                                                         landscape_properties: Some(LandscapeProperties {
-                                                            // primary_texture_id: heightmapId.clone(),
-                                                            // rockmap_texture_id: rockmapId.clone(),
-                                                            // soil_texture_id: soilId.clone()
                                                             // these are the visible texture ids, not the map ids, so are added after adding
                                                             primary_texture_id: None,
                                                             rockmap_texture_id: None,

@@ -1,16 +1,12 @@
-use image::io::Reader as ImageReader;
 use nalgebra::{Matrix4, Vector3};
 use rapier3d::math::Point;
 use wgpu::util::{DeviceExt, TextureDataOrder};
 
 use crate::contexts::saved::LandscapeTextureKinds;
-use crate::renderer::core::Vertex;
-
-use crate::renderer::Transform::{matrix4_to_raw_array, Transform};
-
 use crate::renderer::core::LandscapeData;
-
+use crate::renderer::core::Vertex;
 use crate::renderer::Texture::Texture;
+use crate::renderer::Transform::{matrix4_to_raw_array, Transform};
 
 pub struct Landscape {
     pub id: String,
@@ -35,10 +31,6 @@ impl Landscape {
         texture_bind_group_layout: &wgpu::BindGroupLayout,
         color_render_mode_buffer: &wgpu::Buffer,
     ) -> Self {
-        // .tif image bytes loaded from background
-
-        // TODO: .png mask (soil, rocks) load
-
         // load actual vertices and indices (most important for now)
         let scale = 1.0;
         let (vertices, indices, rapier_vertices) = Self::generate_terrain(data, scale);

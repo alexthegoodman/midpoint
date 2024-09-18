@@ -20,7 +20,7 @@ impl Grid {
         color_render_mode_buffer: &wgpu::Buffer,
     ) -> Self {
         // Generate grid vertices and indices
-        let (vertices, indices) = Self::generate_grid(100.0, 100.0, 1.0); // example dimensions and spacing
+        let (vertices, indices) = Self::generate_grid(100.0, 100.0, 0.25); // example dimensions and spacing
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Grid Vertex Buffer"),
@@ -34,8 +34,13 @@ impl Grid {
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        let empty_buffer = Matrix4::<f32>::identity();
-        let raw_matrix = matrix4_to_raw_array(&empty_buffer);
+        // let empty_buffer = Matrix4::<f32>::identity();
+        // let raw_matrix = matrix4_to_raw_array(&empty_buffer);
+
+        let grid_position = Vector3::new(0.0, -1.0, 0.0); // Adjust this Y value as needed
+        let translation_matrix = Matrix4::new_translation(&grid_position);
+        let translation_matrix = translation_matrix.transpose(); // Transpose to match wgpu layout
+        let raw_matrix = matrix4_to_raw_array(&translation_matrix);
 
         let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Grid Uniform Buffer"),

@@ -164,7 +164,7 @@ impl RendererState {
         ));
 
         let mut cubes = Vec::new();
-        cubes.push(Cube::new(&device, &texture_bind_group_layout));
+        cubes.push(Cube::new(&device, &model_bind_group_layout));
 
         let mut pyramids = Vec::new();
         // pyramids.push(Pyramid::new(device, bind_group_layout, color_render_mode_buffer));
@@ -1000,17 +1000,14 @@ pub fn handle_add_landscape(
     let state = get_renderer_state();
     let mut state_guard = state.lock().unwrap();
 
-    // TODO: this spawn and async may be unncessary
     spawn_local(async move {
-        // let mut state_guard = get_renderer_state_write_lock();
-
         let params = to_value(&GetLandscapeParams {
             projectId,
             landscapeAssetId,
             landscapeFilename,
         })
         .unwrap();
-        // let js_data = crate::app::invoke("get_landscape_pixels", params).await;
+
         let js_data = invoke("get_landscape_pixels", params).await;
         let data: LandscapeData = js_data
             .into_serde()
@@ -1093,11 +1090,6 @@ pub fn handle_add_landscape_texture(
             maskKind,
             mask,
         );
-        // } else {
-        //     web_sys::console::error_1(
-        //         &format!("Failed to fetch texture: {}", texture_filename).into(),
-        //     );
-        // }
 
         drop(state_guard);
 
