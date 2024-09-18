@@ -129,7 +129,7 @@ impl Landscape {
             bind_group,
             // texture_bind_group,
             transform: Transform::new(
-                Vector3::new(0.0, 0.0, 0.0),
+                Vector3::new(0.0, -100.0, 0.0),
                 Vector3::new(0.0, 0.0, 0.0),
                 Vector3::new(1.0, 1.0, 1.0),
                 uniform_buffer,

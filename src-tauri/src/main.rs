@@ -222,7 +222,7 @@ fn get_landscape_pixels(
             .expect("Couldn't form landscape string"),
         2048.0,
         2048.0,
-        100.0,
+        250.0,
     );
 
     LandscapeData {
