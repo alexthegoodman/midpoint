@@ -53,6 +53,13 @@ pub fn primary_view() -> Html {
         scene_display = "flex".to_string();
     }
 
+    let id_option = saved_context
+        .levels
+        .clone()
+        .expect("Couldn't get levels")
+        .get(0)
+        .map(|level| level.clone().id);
+
     html! {
         <section>
             if local_context.route == "/".to_string() {
@@ -248,6 +255,12 @@ pub fn primary_view() -> Html {
                             kind={MdButtonKind::SmallShort}
                             variant={MdButtonVariant::Negative}
                         />
+
+                        if id_option.is_some() {
+                            <span>{"Has Level"}</span>
+                        } else {
+                            <span>{"No Level!"}</span>
+                        }
 
                         <div class="btn-row">
                             <MdButton
