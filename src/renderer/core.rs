@@ -116,7 +116,7 @@ pub fn get_camera() -> &'static mut SimpleCamera {
                     Vector3::new(0.0, 1.0, 0.0),
                     45.0f32.to_radians(),
                     0.1,
-                    100.0,
+                    10000.0,
                 ));
             }
             init.set(true);
