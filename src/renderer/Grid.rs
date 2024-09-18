@@ -37,7 +37,7 @@ impl Grid {
         // let empty_buffer = Matrix4::<f32>::identity();
         // let raw_matrix = matrix4_to_raw_array(&empty_buffer);
 
-        let grid_position = Vector3::new(0.0, -1.0, 0.0); // Adjust this Y value as needed
+        let grid_position = Vector3::new(0.0, 0.0, 0.0); // Adjust this Y value as needed
         let translation_matrix = Matrix4::new_translation(&grid_position);
         let translation_matrix = translation_matrix.transpose(); // Transpose to match wgpu layout
         let raw_matrix = matrix4_to_raw_array(&translation_matrix);

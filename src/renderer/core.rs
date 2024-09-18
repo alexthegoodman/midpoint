@@ -111,7 +111,7 @@ pub fn get_camera() -> &'static mut SimpleCamera {
         if !init.get() {
             unsafe {
                 CAMERA = Some(SimpleCamera::new(
-                    Point3::new(0.0, 0.0, 5.0),
+                    Point3::new(0.0, 1.0, 5.0),
                     Vector3::new(0.0, 0.0, -1.0),
                     Vector3::new(0.0, 1.0, 0.0),
                     45.0f32.to_radians(),
